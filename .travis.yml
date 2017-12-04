@@ -11,9 +11,9 @@ before_script:
 
   - git clone --depth=1  https://github.com/ismrmrd/siemens_to_ismrmrd.git
   - pushd siemens_to_ismrmrd && mkdir build && pushd build && cmake .. && make && sudo make install  && popd && popd
-  
+
   - mkdir build
-  - cd buid
+  - cd build
   - cmake ..
 
 script:
