@@ -13,7 +13,7 @@ before_script:
   - pushd siemens_to_ismrmrd && mkdir build && pushd build && cmake .. && make && sudo make install  && popd && popd
 
 before_script:
-  -mkdir build
+  - mkdir build
   - cd buid
   - cmake ..
 
