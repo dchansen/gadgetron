@@ -2,8 +2,18 @@ dist: trusty
 sudo: required
 language: cpp
 compiler: gcc
+cache: ccache
 
+
+addons:
+    apt:
+        sources:
+            - ubuntu-toolchain-r-test
+        packages:
+            - g++-5
+            - gcc-5
 before_script:
+  - export CXX="g++-5" CC="gcc-5"
   - sudo apt-get -qq update
   - sudo apt-get install libhdf5-serial-dev cmake git-core libboost-all-dev build-essential libfftw3-dev h5utils hdf5-tools python-dev python-numpy liblapack-dev libxml2-dev libxslt-dev libarmadillo-dev libace-dev python-h5py python-matplotlib python-libxml2 gcc-multilib python-psutil libgtest-dev nvidia-cuda-toolkit libplplot-dev
   - git clone --depth=1 https://github.com/ismrmrd/ismrmrd.git
@@ -19,4 +29,4 @@ before_script:
   - cmake ..
 
 script:
-  - make
+  - make -j 2
