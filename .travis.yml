@@ -31,6 +31,7 @@ before_script:
 script:
   - make -j 2
   - sudo make install
+  - sudo mv /usr/local/share/gadgetron/config/gadgetron.xml.example /usr/local/share/gadgetron/config/gadgetron.xml
   - export GADGETRON_HOME=/usr/local
   - export ISMRMRD_HOME=/usr/local
   - cd .. && cd test/integration && python get_data.py
