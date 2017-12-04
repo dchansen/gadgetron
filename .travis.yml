@@ -1,0 +1,21 @@
+dist: trusty
+sudo: required
+language: cpp
+compiler: gcc
+
+before_script:
+  - sudo apt-get -qq update
+  - sudo apt-get install libhdf5-serial-dev cmake git-core libboost-all-dev build-essential libfftw3-dev h5utils hdf5-tools python-dev python-numpy liblapack-dev libxml2-dev libxslt-dev libarmadillo-dev libace-dev python-h5py python-matplotlib python-libxml2 gcc-multilib python-psutil libgtest-dev nvidia-cuda-toolkit libplplot-dev
+  - git clone --depth=1 https://github.com/ismrmrd/ismrmrd.git
+  - pushd ismrmrd && mkdir build && pushd build && cmake .. && make && sudo make install && popd && popd
+
+  - git clone --depth=1  https://github.com/ismrmrd/siemens_to_ismrmrd.git
+  - pushd siemens_to_ismrmrd && mkdir build && pushd build && cmake .. && make && sudo make install  && popd && popd
+
+before_script:
+  -mkdir build
+  - cd buid
+  - cmake ..
+
+script:
+  - make
