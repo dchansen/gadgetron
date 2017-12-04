@@ -30,3 +30,8 @@ before_script:
 
 script:
   - make -j 2
+  - sudo make install
+  - export GADGETRON_HOME=/usr/local
+  - export ISMRMRD_HOME=/usr/local
+  - cd .. && cd test/integration && python get_data.py
+  - python run_all_tests.py test_cases.txt
