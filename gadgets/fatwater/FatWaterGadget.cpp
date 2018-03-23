@@ -95,7 +95,7 @@ namespace Gadgetron{
         a.species_.push_back(w);
         a.species_.push_back(f);
 
-        try {            
+        //try {
             //This should return the images
             hoNDArray< std::complex<float> > wfimages = Gadgetron::fatwater_separation(imagearr.data_, p, a);
 
@@ -148,11 +148,10 @@ namespace Gadgetron{
                 return GADGET_FAIL;
             }
             
-        } catch (...) {
+      /*  } catch (...) {
             GERROR("Error caught while doing water fat separation\n");
-            m1->release();
             return GADGET_FAIL;
-        }
+        }*/
         
         //Pass the image down the chain
         if (this->next()->putq(m1) < 0) {

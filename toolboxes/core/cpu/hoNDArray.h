@@ -120,7 +120,7 @@ namespace Gadgetron{
     const T& at( size_t idx ) const;
 
     T& operator[]( size_t idx );
-
+    const T& operator[]( size_t idx ) const;
     //T& operator()( size_t idx );
     //const T& operator()( size_t idx ) const;
 

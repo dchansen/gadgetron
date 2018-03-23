@@ -735,6 +735,16 @@ namespace Gadgetron
         GADGET_DEBUG_CHECK_THROW(idx < this->get_number_of_elements());
         return this->get_data_ptr()[idx];
     }
+    template <typename T>
+    inline const T& hoNDArray<T>::operator[]( size_t idx ) const
+    {
+        /*if( idx >= this->get_number_of_elements() )
+        {
+        BOOST_THROW_EXCEPTION( runtime_error("hoNDArray::operator[]: index out of range."));
+        }*/
+        GADGET_DEBUG_CHECK_THROW(idx < this->get_number_of_elements());
+        return this->get_data_ptr()[idx];
+    }
 
     //template <typename T> 
     //inline T& hoNDArray<T>::operator()( size_t idx )

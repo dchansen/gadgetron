@@ -23,8 +23,12 @@
 #include "simplexLagariaSolver.h"
 #include "twoParaExpDecayOperator.h"
 #include "curveFittingCostFunction.h"
+
 #include <boost/random.hpp>
 #include <boost/graph/compressed_sparse_row_graph.hpp>
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/stoer_wagner_min_cut.hpp>
+#include <boost/graph/boykov_kolmogorov_max_flow.hpp>
 #include <armadillo>
 
 #define GAMMABAR 42.576 // MHz/T
@@ -65,14 +69,171 @@ Traits::edge_descriptor AddEdge(Traits::vertex_descriptor &v1,
 //}
 //
 //namespace Gadgetron {
-//    boost::compressed_sparse_row_graph make_graph(const hoNDArray<std::complex<float>> &field_map,
-//                                                  const hoNDArray<std::complex<float>> &proposed_field_map) {
-//
-//    }
+
 //
 //}
 
 namespace Gadgetron {
+    void add_regularization_edge(const hoNDArray <float> &field_map,
+                                 const hoNDArray <float> &proposed_field_map, const size_t source_idx,
+                                 const size_t sink_idx, std::vector<std::pair<size_t, size_t>> &edges,
+                                 std::vector<float> &edge_weights, const size_t idx, const size_t idx2);
+
+    //Welcome to template Hell ala 1998. Enjoy.
+    typedef boost::adjacency_list<vecS, vecS, bidirectionalS> Traits;
+    typedef boost::adjacency_list<vecS, vecS, bidirectionalS,
+            boost::property<boost::vertex_color_t, boost::default_color_type,
+            boost::property<boost::vertex_predecessor_t, Traits::edge_descriptor,
+                    boost::property<boost::vertex_distance_t, float>>>,
+            boost::property<boost::edge_capacity_t,float,
+                    boost::property<boost::edge_residual_capacity_t,float,
+                            boost::property<boost::edge_reverse_t, Traits::edge_descriptor>>>> Graph;
+
+    /*
+    typedef boost::compressed_sparse_row_graph<bidirectionalS> Traits;
+    typedef boost::compressed_sparse_row_graph<bidirectionalS,
+            boost::property<boost::vertex_color_t, boost::default_color_type,
+            boost::property<boost::vertex_predecessor_t, Traits::edge_descriptor,
+            boost::property<boost::vertex_distance_t, float>>>,
+            boost::property<boost::edge_capacity_t,float,
+            boost::property<boost::edge_residual_capacity_t,float,
+            boost::property<boost::edge_reverse_t, Traits::edge_descriptor>>>,no_property, std::size_t,std::size_t> Graph;
+*/
+    Graph make_graph(const hoNDArray<float> &field_map, const hoNDArray<float> &proposed_field_map,
+                     const hoNDArray<float> &residual_diff_map) {
+
+        const auto dims = *field_map.get_dimensions();
+
+
+
+        const size_t source_idx = field_map.get_number_of_elements();
+        const size_t sink_idx = source_idx+1;
+
+        std::vector<std::pair<size_t,size_t>> edges;
+        std::vector<float> edge_weights;
+
+
+        //Add regularization edges
+        for (size_t k2 = 0; k2 < dims[1]; k2++){
+            for (size_t k1 = 0; k1 < dims[0]; k1++){
+                size_t idx = k2*dims[0]+k1;
+
+
+                if (k1 < (dims[0]-1)){
+                    size_t idx2 = idx+1;
+                    add_regularization_edge(field_map, proposed_field_map, source_idx, sink_idx, edges, edge_weights,
+                                            idx, idx2);
+                }
+
+
+                if (k2 < (dims[1]-1)){
+                    size_t idx2 = idx + dims[0];
+                    add_regularization_edge(field_map, proposed_field_map, source_idx, sink_idx, edges, edge_weights,
+                                            idx, idx2);
+                }
+                if (k1 < (dims[0]-1) && k2 < (dims[1]-1)){
+                    size_t idx2 = idx+dims[0]+1;
+                    add_regularization_edge(field_map, proposed_field_map, source_idx, sink_idx, edges, edge_weights,
+                                            idx, idx2);
+                }
+
+
+                float residual_diff = residual_diff_map[idx];
+
+                if (residual_diff > 0){
+                    edges.emplace_back(source_idx,idx);
+                    edge_weights.push_back(residual_diff);
+
+                } else {
+                    edges.emplace_back(idx,sink_idx);
+                    edge_weights.push_back(-residual_diff);
+                }
+
+            }
+        }
+
+//        Graph  graph(boost::edges_are_unsorted_multi_pass_t(),edges.begin(),edges.end(), edge_weights.begin(),field_map.get_number_of_elements()+2);
+        Graph  graph(edges.begin(),edges.end(), edge_weights.begin(),field_map.get_number_of_elements()+2);
+
+
+        return graph;
+
+
+
+
+    }
+
+
+    void update_field_map(hoNDArray<float> &field_map, const hoNDArray<float> &proposed_field_map,
+                          const hoNDArray<float> &residual_diff_map) {
+
+        Graph graph = make_graph(field_map,proposed_field_map,residual_diff_map);
+        size_t source_idx = field_map.get_number_of_elements();
+        size_t sink_idx = source_idx+1;
+//        auto parities = boost::make_one_bit_color_map(num_vertices(graph), get(boost::vertex_index, graph));
+//
+        // run the Stoer-Wagner algorithm to obtain the min-cut weight. `parities` is also filled in.
+        // This is
+//        boost::stoer_wagner_min_cut(graph, boost::get(boost::edge_weight, graph), boost::parity_map(parities));
+        Graph::vertex_descriptor source = boost::vertex(source_idx,graph);
+        Graph::vertex_descriptor sink = boost::vertex(sink_idx,graph);
+
+        boost::boykov_kolmogorov_max_flow(graph,source,sink);
+
+        auto color_map = boost::get(vertex_color,graph);
+
+        // Ok, let's figure out what labels were assined to the source.
+        auto source_label = boost::get(color_map,source_idx);
+        //And update the field_map
+        for (size_t i = 0; i < field_map.get_number_of_elements(); i++){
+            if (boost::get(color_map,i) != source_label)
+                field_map[i] = proposed_field_map[i];
+        }
+        ;
+    }
+
+    void add_regularization_edge(const hoNDArray<float> &field_map,
+                                 const hoNDArray<float> &proposed_field_map, const size_t source_idx,
+                                 const size_t sink_idx, std::vector<std::pair<size_t, size_t>> &edges,
+                                 std::vector<float> &edge_weights, const size_t idx, const size_t idx2) {
+        edges.emplace_back(idx, idx2);
+        auto f_value1 = field_map[idx];
+        auto pf_value1 = proposed_field_map[idx];
+        auto f_value2 = field_map[idx2];
+        auto pf_value2 = proposed_field_map[idx2];
+        float weight = std::norm(pf_value1 - f_value2) + std::norm(f_value1 - pf_value2)
+                       - std::norm(f_value1 - f_value2) - std::norm(pf_value1 - pf_value2);
+        edge_weights.push_back(weight);
+
+        float aq = std::norm(pf_value1 - f_value2) - std::norm(f_value1 - f_value2);
+
+        if (aq > 0){
+            edges.emplace_back(source_idx,idx);
+            edge_weights.push_back(aq);
+        } else {
+            edges.emplace_back(idx,sink_idx);
+            edge_weights.push_back(-aq);
+        }
+
+        float aj = std::norm(f_value1 - pf_value2) - std::norm(f_value1 - f_value2);
+        if (aj > 0){
+            edges.emplace_back(source_idx,idx2);
+            edge_weights.push_back(aj);
+        } else {
+            edges.emplace_back(idx2,sink_idx);
+            edge_weights.push_back(-aj);
+        }
+
+
+
+
+    }
+
+    hoNDArray <std::complex<float>>
+    CalculateResidualMap(const std::vector<float> &echoTimes, uint16_t num_r2star, uint16_t num_fm, uint16_t nspecies,
+                         uint16_t nte, const arma::Mat<std::complex<float>> &phiMatrix,
+                         const std::vector<float> &field_map_strengths, const std::vector<float> &r2stars);
+
     hoNDArray<std::complex<float> > fatwater_separation(hoNDArray<std::complex<float> > &data, FatWaterParameters p,
                                                         FatWaterAlgorithm a) {
 
@@ -148,24 +309,14 @@ namespace Gadgetron {
                 GDEBUG("Cur value phiMatrix = (%f,%f) \n", phiMatrix(k1, k2).real(), phiMatrix(k1, k2).imag());
             }
         }
-        //auto a_phiMatrix = as_arma_matrix(&phiMatrix);
-        //auto mymat2 = mymat.t()*mymat;
-
-        for (int ka = 0; ka < phiMatrix.n_rows; ka++) {
-            for (int kb = 0; kb < phiMatrix.n_cols; kb++) {
-                GDEBUG("Check phiMatrix(%d,%d) = %f + i %f \n", ka, kb, phiMatrix(ka, kb).real(),
-                       phiMatrix(ka, kb).imag());
-            }
-        }
 
 
-        //	auto a_phiMatrix = as_arma_matrix(&IdentMat);
 
         float fm;
-        std::vector<float> fms(num_fm);
-        fms[0] = range_fm.first;
+        std::vector<float> field_map_strengths(num_fm);
+        field_map_strengths[0] = range_fm.first;
         for (int k1 = 1; k1 < num_fm; k1++) {
-            fms[k1] = range_fm.first + k1 * (range_fm.second - range_fm.first) / (num_fm - 1);
+            field_map_strengths[k1] = range_fm.first + k1 * (range_fm.second - range_fm.first) / (num_fm - 1);
         }
 
         float r2star;
@@ -176,36 +327,13 @@ namespace Gadgetron {
         }
 
 
-        std::complex<float> curModulation;
-
-        Cmat psiMatrix(nte, nspecies);
-        hoNDArray<std::complex<float> > Ps(nte, nte, num_fm, num_r2star);
-        Cmat P(nte, nte);
-
-        for (int k3 = 0; k3 < num_fm; k3++) {
-            fm = fms[k3];
-            for (int k4 = 0; k4 < num_r2star; k4++) {
-                r2star = r2stars[k4];
 
 
-                for (int k1 = 0; k1 < nte; k1++) {
-                    curModulation = exp(-r2star * echoTimes[k1]) * std::complex<float>(cos(2 * PI * echoTimes[k1] * fm),
-                                                                                       sin(2 * PI * echoTimes[k1] *
-                                                                                           fm));
-                    for (int k2 = 0; k2 < nspecies; k2++) {
-                        psiMatrix(k1, k2) = phiMatrix(k1,k2)*curModulation;
-                    }
-                }
-                Cmat P = arma::eye<Cmat>(nte,nte)-psiMatrix*arma::solve(psiMatrix.t()*psiMatrix,psiMatrix.t());
 
-                // Keep all projector matrices together
-                for (int k1 = 0; k1 < nte; k1++) {
-                    for (int k2 = 0; k2 < nte; k2++) {
-                        Ps(k1, k2, k3, k4) = P(k1, k2);
-                    }
-                }
-            }
-        }
+
+
+        auto Ps = CalculateResidualMap(echoTimes, num_r2star, num_fm, nspecies, nte, phiMatrix, field_map_strengths,
+                                       r2stars);
 
 
         // Need to check that S = nte
@@ -216,6 +344,7 @@ namespace Gadgetron {
         hoNDArray<uint16_t> r2starIndex(X, Y, num_fm);
         hoNDArray<uint16_t> fmIndex(X, Y);
         float curResidual, minResidual, minResidual2;
+        Cmat P(nte,nte);
         for (int k1 = 0; k1 < X; k1++) {
             for (int k2 = 0; k2 < Y; k2++) {
                 // Get current signal
@@ -264,75 +393,30 @@ namespace Gadgetron {
                     }
 
                     if (k1 == 107 && k2 == 144) {
-                        GDEBUG(" %f -->  %f \n", fms[k3], minResidual);
+                        GDEBUG(" %f -->  %f \n", field_map_strengths[k3], minResidual);
                     }
                 }
             }
         }
 
+        hoNDArray<float> field_map(X,Y);
+        for (int k2 = 0; k2 < Y; k2++){
+            for (int k1 =0; k1 < X; k1++){
+                field_map(k1,k2) = field_map_strengths[fmIndex(k1,k2)];
+            }
+        }
 
+        hoNDArray<float> field_map_updated(field_map);
+        field_map_updated += field_map_strengths[1]-field_map_strengths[0];
 
-        //arma::Mat< std::complex<float> > arma_phiMatrix = as_arma_matrix( phiMatrix );
+        hoNDArray<float> residual_diff(X,Y);
 
+        for (int k2 = 0; k2 < Y; k2++)
+            for (int k1 = 0; k1 < Y; k1++)
+                residual_diff(k1,k2) = residual(fmIndex(k1,k2),k1,k2)-residual(fmIndex(k1,k2)+1,k1,k2);
 
-        //Do graph cut iterations
-        using namespace boost;
+        update_field_map(field_map,field_map_updated,residual_diff);
 
-        // create a typedef for the Graph type
-        typedef adjacency_list<vecS, vecS, bidirectionalS> Graph;
-
-        // Make convenient labels for the vertices
-        enum {
-            A, B, C, D, E
-        };
-        const int num_vertices = 5;
-        const char *name = "ABCDE";
-
-        // writing out the edges in the graph
-        typedef std::pair<int, int> Edge;
-        Edge edge_array[] =
-                {Edge(A, B), Edge(A, D), Edge(C, A), Edge(D, C),
-                 Edge(C, E), Edge(B, D), Edge(D, E)};
-        const int num_edges = sizeof(edge_array) / sizeof(edge_array[0]);
-
-        // declare a graph object
-        Graph g(edge_array, edge_array + sizeof(edge_array) / sizeof(Edge), num_vertices);
-
-
-        /*
-        property_map<Graph, edge_capacity_t>::type
-          capacity = get(edge_capacity, g);
-        property_map<Graph, edge_reverse_t>::type
-          rev = get(edge_reverse, g);
-        property_map<Graph, edge_residual_capacity_t>::type
-          residual_capacity = get(edge_residual_capacity, g);
-
-        Traits::vertex_descriptor s, t;
-        read_dimacs_max_flow(g, capacity, rev, s, t);
-
-        long flow;
-    #if defined(BOOST_MSVC) && BOOST_MSVC <= 1300
-        // Use non-named parameter version
-        property_map<Graph, vertex_index_t>::type
-          indexmap = get(vertex_index, g);
-        flow = push_relabel_max_flow(g, s, t, capacity, residual_capacity, rev, indexmap);
-    #else
-        flow = push_relabel_max_flow(g, s, t);
-    #endif
-
-        std::cout << "c  The total flow:" << std::endl;
-        std::cout << "s " << flow << std::endl << std::endl;
-
-        std::cout << "c flow values:" << std::endl;
-        graph_traits<Graph>::vertex_iterator u_iter, u_end;
-        graph_traits<Graph>::out_edge_iterator ei, e_end;
-        for (boost::tie(u_iter, u_end) = vertices(g); u_iter != u_end; ++u_iter)
-          for (boost::tie(ei, e_end) = out_edges(*u_iter, g); ei != e_end; ++ei)
-            if (capacity[*ei] > 0)
-              std::cout << "f " << *u_iter << " " << target(*ei, g) << " "
-                << (capacity[*ei] - residual_capacity[*ei]) << std::endl;
-
-        */
 
 
 
@@ -346,6 +430,7 @@ namespace Gadgetron {
             for (int k2 = 0; k2 < Y; k2++) {
 
                 Cmat tempSignal(S,N);
+
                 // Get current signal
                 for (int k4 = 0; k4 < N; k4++) {
                     for (int k5 = 0; k5 < S; k5++) {
@@ -353,12 +438,14 @@ namespace Gadgetron {
                     }
                 }
                 // Get current Psi matrix
-                fm = fms[fmIndex(k1, k2)];
+//                fm = field_map_strengths[fmIndex(k1, k2)];
+                fm = field_map(k1,k2);
                 r2star = r2stars[r2starIndex(k1, k2, fmIndex(k1, k2))];
+                Cmat psiMatrix(nte,nspecies);
                 for (int k3 = 0; k3 < nte; k3++) {
-                    curModulation = exp(-r2star * echoTimes[k3]) * std::complex<float>(cos(2 * PI * echoTimes[k3] * fm),
-                                                                                       sin(2 * PI * echoTimes[k3] *
-                                                                                           fm));
+                    auto curModulation = exp(-r2star * echoTimes[k3]) * std::complex<float>(cos(2 * PI * echoTimes[k3] * fm),
+                                                                                            sin(2 * PI * echoTimes[k3] *
+                                                                                                fm));
                     for (int k4 = 0; k4 < nspecies; k4++) {
                         psiMatrix(k3, k4) = phiMatrix(k3, k4) * curModulation;
                     }
@@ -385,5 +472,41 @@ namespace Gadgetron {
 
 
         return out;
+    }
+
+    hoNDArray <std::complex<float>>
+    CalculateResidualMap(const std::vector<float> &echoTimes, uint16_t num_r2star, uint16_t num_fm, uint16_t nspecies,
+                         uint16_t nte, const arma::Mat<std::complex<float>> &phiMatrix,
+                         const std::vector<float> &field_map_strengths, const std::vector<float> &r2stars) {
+        arma::Mat<std::complex<float>> psiMatrix(nte, nspecies);
+        hoNDArray<std::complex<float> > Ps(nte, nte, num_fm, num_r2star);
+        arma::Mat<std::complex<float>> P(nte, nte);
+
+        for (int k3 = 0; k3 < num_fm; k3++) {
+            float fm = field_map_strengths[k3];
+            for (int k4 = 0; k4 < num_r2star; k4++) {
+                float r2star = r2stars[k4];
+
+
+                for (int k1 = 0; k1 < nte; k1++) {
+                    auto curModulation = exp(-r2star * echoTimes[k1]) * std::complex<float>(cos(2 * PI * echoTimes[k1] * fm),
+                                                                                            sin(2 * PI * echoTimes[k1] *
+                                                                                                fm));
+                    for (int k2 = 0; k2 < nspecies; k2++) {
+                        psiMatrix(k1, k2) = phiMatrix(k1,k2)*curModulation;
+                    }
+                }
+                arma::Mat<std::complex<float>> P = arma::eye<arma::Mat<std::complex<float>>>(nte, nte) - psiMatrix *
+                                                                                                         arma::solve(psiMatrix.t() * psiMatrix, psiMatrix.t());
+
+// Keep all projector matrices together
+                for (int k1 = 0; k1 < nte; k1++) {
+                    for (int k2 = 0; k2 < nte; k2++) {
+                        Ps(k1, k2, k3, k4) = P(k1, k2);
+                    }
+                }
+            }
+        }
+        return Ps;
     }
 }
