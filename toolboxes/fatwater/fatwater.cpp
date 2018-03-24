@@ -13,8 +13,10 @@
 #include <boost/graph/read_dimacs.hpp>
 #include <boost/graph/graph_utility.hpp>
 #include <boost/graph/boykov_kolmogorov_max_flow.hpp>
-#include <boost/graph/edmonds_karp_max_flow.hpp>
+//#include <boost/graph/edmonds_karp_max_flow.hpp>
 #include <boost/timer/timer.hpp>
+#include <boost/iterator/function_input_iterator.hpp>
+#include <iterator>
 
 // Curve fitting includes (from Hui's example)
 //#include "hoNDHarrWavelet.h"
@@ -74,31 +76,182 @@ Traits::edge_descriptor AddEdge(Traits::vertex_descriptor &v1,
 //}
 
 namespace Gadgetron {
+
+
+
+
     void add_regularization_edge(const hoNDArray <float> &field_map,
                                  const hoNDArray <float> &proposed_field_map, const size_t source_idx,
                                  const size_t sink_idx, std::vector<std::pair<size_t, size_t>> &edges,
                                  std::vector<float> &edge_weights, const size_t idx, const size_t idx2);
 
-    //Welcome to template Hell ala 1998. Enjoy.
-    typedef boost::adjacency_list<vecS, vecS, bidirectionalS> Traits;
-    typedef boost::adjacency_list<vecS, vecS, bidirectionalS,
-            boost::property<boost::vertex_color_t, boost::default_color_type,
-            boost::property<boost::vertex_predecessor_t, Traits::edge_descriptor,
-                    boost::property<boost::vertex_distance_t, float>>>,
-            boost::property<boost::edge_capacity_t,float,
-                    boost::property<boost::edge_residual_capacity_t,float,
-                            boost::property<boost::edge_reverse_t, Traits::edge_descriptor>>>> Graph;
+//    //Welcome to template Hell ala 1998. Enjoy.
+//    typedef boost::adjacency_list<vecS, vecS, undirectedS> Traits;
+//    typedef boost::adjacency_list<vecS, vecS, undirectedS,
+//            boost::property<boost::vertex_color_t, boost::default_color_type,
+//            boost::property<boost::vertex_predecessor_t, Traits::edge_descriptor,
+//                    boost::property<boost::vertex_distance_t, float>>>,
+//            boost::property<boost::edge_capacity_t,float,
+//                    boost::property<boost::edge_residual_capacity_t,float,
+//                            boost::property<boost::edge_reverse_t, Traits::edge_descriptor>>>> Graph;
 
-    /*
+//
     typedef boost::compressed_sparse_row_graph<bidirectionalS> Traits;
+
     typedef boost::compressed_sparse_row_graph<bidirectionalS,
             boost::property<boost::vertex_color_t, boost::default_color_type,
-            boost::property<boost::vertex_predecessor_t, Traits::edge_descriptor,
-            boost::property<boost::vertex_distance_t, float>>>,
+                    boost::property<boost::vertex_predecessor_t, Traits::edge_descriptor,
+                            boost::property<boost::vertex_distance_t, float>>>,
             boost::property<boost::edge_capacity_t,float,
-            boost::property<boost::edge_residual_capacity_t,float,
-            boost::property<boost::edge_reverse_t, Traits::edge_descriptor>>>,no_property, std::size_t,std::size_t> Graph;
-*/
+                    boost::property<boost::edge_residual_capacity_t,float,
+                            boost::property<boost::edge_reverse_t, Traits::edge_descriptor>>>,no_property, std::size_t,std::size_t> Graph;
+
+
+    void fix_reverse_edges(Graph &graph,const std::vector<size_t> dims,size_t source_idx,size_t sink_idx){
+
+        auto edge_reverse_map = boost::get(boost::edge_reverse,graph);
+
+        for (size_t k2 = 0; k2 < dims[1]; k2++) {
+            for (size_t k1 = 0; k1 < dims[0]; k1++) {
+                size_t idx = k2 * dims[0] + k1;
+
+                if (k1 < (dims[0] - 1)) {
+                    size_t idx2 = idx + 1;
+                    auto edge = boost::edge(idx,idx2,graph).first;
+                    auto reverse_edge = boost::edge(idx2,idx,graph).first;
+                    edge_reverse_map[edge] = reverse_edge;
+                    edge_reverse_map[reverse_edge] = edge;
+
+                }
+
+                if (k2 < (dims[1] - 1)) {
+                    size_t idx2 = idx + dims[0];
+                    auto edge = boost::edge(idx,idx2,graph).first;
+                    auto reverse_edge = boost::edge(idx2,idx,graph).first;
+                    edge_reverse_map[edge] = reverse_edge;
+                    edge_reverse_map[reverse_edge] = edge;
+                }
+
+                if (k1 < (dims[0] - 1) && k2 < (dims[1] - 1)) {
+                    size_t idx2 = idx + dims[0] + 1;
+                    auto edge = boost::edge(idx,idx2,graph).first;
+                    auto reverse_edge = boost::edge(idx2,idx,graph).first;
+                    edge_reverse_map[edge] = reverse_edge;
+                    edge_reverse_map[reverse_edge] = edge;
+                }
+
+                auto edge = boost::edge(idx,source_idx,graph).first;
+                auto reverse_edge = boost::edge(source_idx,idx,graph).first;
+                edge_reverse_map[edge] = reverse_edge;
+                edge_reverse_map[reverse_edge] = edge;
+
+                edge = boost::edge(idx,sink_idx,graph).first;
+                reverse_edge = boost::edge(sink_idx,idx,graph).first;
+                edge_reverse_map[edge] = reverse_edge;
+                edge_reverse_map[reverse_edge] = edge;
+            }
+        }
+
+    }
+
+    Graph create_empty_graph(const hoNDArray<float> &field_map) {
+        std::vector<std::pair<size_t, size_t>> edges;
+
+
+
+        const auto dims = *field_map.get_dimensions();
+
+        const size_t source_idx = field_map.get_number_of_elements();
+        const size_t sink_idx = source_idx + 1;
+
+        for (size_t k2 = 0; k2 < dims[1]; k2++) {
+            for (size_t k1 = 0; k1 < dims[0]; k1++) {
+                size_t idx = k2 * dims[0] + k1;
+
+                if (k1 < (dims[0] - 1)) {
+                    size_t idx2 = idx + 1;
+                    edges.emplace_back(idx, idx2);
+                    edges.emplace_back(idx2, idx);
+                }
+
+                if (k2 < (dims[1] - 1)) {
+                    size_t idx2 = idx + dims[0];
+                    edges.emplace_back(idx, idx2);
+                    edges.emplace_back(idx2, idx);
+                }
+
+                if (k1 < (dims[0] - 1) && k2 < (dims[1] - 1)) {
+                    size_t idx2 = idx + dims[0] + 1;
+                    edges.emplace_back(idx, idx2);
+                    edges.emplace_back(idx2, idx);
+                }
+
+                edges.emplace_back(source_idx, idx);
+                edges.emplace_back(idx, source_idx);
+
+                edges.emplace_back(sink_idx, idx);
+                edges.emplace_back(idx, sink_idx);
+
+            }
+        }
+        struct constant_iterator : public std::iterator<std::forward_iterator_tag,float>  {
+        public:
+            constant_iterator& operator++(){ return *this;}
+            float operator*(){ return 0;}
+        };
+
+
+        Graph  graph(boost::edges_are_unsorted_multi_pass_t (),edges.begin(),edges.end(), constant_iterator(),field_map.get_number_of_elements()+2);
+
+        fix_reverse_edges(graph,dims,source_idx,sink_idx);
+        return graph;
+
+    }
+
+
+    void add_to_edge(size_t idx, size_t idx2, float value, Graph& graph){
+        auto edge_capacity_map = boost::get(boost::edge_capacity,graph);
+        auto edge = boost::edge(idx,idx2,graph);
+        edge_capacity_map[edge.first] += value;
+
+        edge = boost::edge(idx2,idx,graph);
+        edge_capacity_map[edge.first] += value;
+
+    }
+
+    void update_regularization_edge(Graph& graph, const hoNDArray<float> &field_map,
+                                    const hoNDArray<float> &proposed_field_map, const size_t source_idx,
+                                    const size_t sink_idx, const size_t idx, const size_t idx2) {
+
+        auto f_value1 = field_map[idx];
+        auto pf_value1 = proposed_field_map[idx];
+        auto f_value2 = field_map[idx2];
+        auto pf_value2 = proposed_field_map[idx2];
+        float weight = std::norm(pf_value1 - f_value2) + std::norm(f_value1 - pf_value2)
+                       - std::norm(f_value1 - f_value2) - std::norm(pf_value1 - pf_value2);
+
+        add_to_edge(idx,idx2,weight,graph);
+        float aq = std::norm(pf_value1 - f_value2) - std::norm(f_value1 - f_value2);
+
+        if (aq > 0){
+            add_to_edge(source_idx,idx,aq,graph);
+        } else {
+            add_to_edge(idx,sink_idx,-aq,graph);
+        }
+
+        float aj = std::norm(f_value1 - pf_value2) - std::norm(f_value1 - f_value2);
+        if (aj > 0){
+            add_to_edge(source_idx,idx2,aj,graph);
+        } else {
+            add_to_edge(idx2,sink_idx,-aj,graph);
+        }
+
+    }
+
+
+
+
+
     Graph make_graph(const hoNDArray<float> &field_map, const hoNDArray<float> &proposed_field_map,
                      const hoNDArray<float> &residual_diff_map) {
 
@@ -109,51 +262,41 @@ namespace Gadgetron {
         const size_t source_idx = field_map.get_number_of_elements();
         const size_t sink_idx = source_idx+1;
 
-        std::vector<std::pair<size_t,size_t>> edges;
-        std::vector<float> edge_weights;
-
+        Graph graph = create_empty_graph(field_map);
 
         //Add regularization edges
         for (size_t k2 = 0; k2 < dims[1]; k2++){
             for (size_t k1 = 0; k1 < dims[0]; k1++){
                 size_t idx = k2*dims[0]+k1;
 
-
                 if (k1 < (dims[0]-1)){
                     size_t idx2 = idx+1;
-                    add_regularization_edge(field_map, proposed_field_map, source_idx, sink_idx, edges, edge_weights,
-                                            idx, idx2);
+                    update_regularization_edge(graph,field_map,proposed_field_map,source_idx,sink_idx,idx,idx2);
                 }
 
 
                 if (k2 < (dims[1]-1)){
                     size_t idx2 = idx + dims[0];
-                    add_regularization_edge(field_map, proposed_field_map, source_idx, sink_idx, edges, edge_weights,
-                                            idx, idx2);
+                    update_regularization_edge(graph,field_map,proposed_field_map,source_idx,sink_idx,idx,idx2);
                 }
                 if (k1 < (dims[0]-1) && k2 < (dims[1]-1)){
                     size_t idx2 = idx+dims[0]+1;
-                    add_regularization_edge(field_map, proposed_field_map, source_idx, sink_idx, edges, edge_weights,
-                                            idx, idx2);
+                    update_regularization_edge(graph,field_map,proposed_field_map,source_idx,sink_idx,idx,idx2);
                 }
 
 
                 float residual_diff = residual_diff_map[idx];
 
                 if (residual_diff > 0){
-                    edges.emplace_back(source_idx,idx);
-                    edge_weights.push_back(residual_diff);
-
+                    add_to_edge(source_idx,idx,residual_diff,graph);
                 } else {
-                    edges.emplace_back(idx,sink_idx);
-                    edge_weights.push_back(-residual_diff);
+                    add_to_edge(idx,sink_idx,-residual_diff,graph);
                 }
 
             }
         }
 
-//        Graph  graph(boost::edges_are_unsorted_multi_pass_t(),edges.begin(),edges.end(), edge_weights.begin(),field_map.get_number_of_elements()+2);
-        Graph  graph(edges.begin(),edges.end(), edge_weights.begin(),field_map.get_number_of_elements()+2);
+
 
 
         return graph;
@@ -219,6 +362,7 @@ namespace Gadgetron {
         if (aj > 0){
             edges.emplace_back(source_idx,idx2);
             edge_weights.push_back(aj);
+
         } else {
             edges.emplace_back(idx2,sink_idx);
             edge_weights.push_back(-aj);
