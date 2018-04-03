@@ -78,6 +78,60 @@ Traits::edge_descriptor AddEdge(Traits::vertex_descriptor &v1,
 namespace Gadgetron {
 
 
+    hoNDArray<std::vector<uint16_t>> find_local_minima(const hoNDArray<float>& residuals){
+
+        const auto Y = residuals.get_size(2);
+        const auto X = residuals.get_size(1);
+        hoNDArray<std::vector<uint16_t> result(X,Y);
+        const auto steps = residuals.get_size(0);
+        for (size_t k2 = 0; k2 < Y; k2++){
+            for (size_t k1 = 0; k1 < X; k1++){
+                float min = residuals(0,k1,k2);
+                float max = min;
+                std::vector<uint16_t> minima;
+                for (size_t k0 = 0; k0 < steps; k0++){
+                    min = std::min(min,residuals(k0,k1,k2));
+                    max = std::max(max,residuals(k0,k1,k2));
+                }
+
+                for (size_t k0 = 1; k0 < steps-1; k0++){
+                    if ((residuals(k0,k1,k2)-residuals(k0-1,k1,k2)) < 0 &&
+                        (residuals(k0,k1,k2)-residuals(k0+1,k1,k2)) > 0 &&
+                        residuals(k0,k1,k2) < 0.3*(max-min)+0.06){
+                        minima.push_back(k0);
+                    }
+
+                }
+                auto comparator = [=](uint16_t i, uint16_t j){
+                    return residuals(i,k1,k2) < residuals(j,k1,k2);
+                };
+
+                std::sort(minima.begin(),minima.end(),comparator);
+                result(k1,k2) = std::move(minima);
+
+            }
+        }
+        return result;
+    }
+
+    hoNDArray<float> approx_second_derivative(const hoNDArray<float> & residuals, const hoNDArray<uint16_t>& fmIndex, float step_size ){
+        hoNDArray<float> second_deriv(fmIndex.get_dimensions());
+
+        const auto Y = second_deriv.get_size(1);
+        const auto X = second_deriv.get_size(0);
+
+        for (uint16_t k2 = 0; k2 < Y; k2++) {
+            for (uint16_t k1 = 0; k1 < X; k1++) {
+                second_deriv(k1, k2) =
+                        (residuals(fmIndex(k1, k2) - 1, k1, k2) + residuals(fmIndex(k1, k2) + 1, k1, k2) -
+                         2 * residuals(fmIndex(k1, k2), k1, k2)) / (step_size * step_size);
+            }
+        }
+
+        return second_deriv;
+
+
+    }
 
 
     void add_regularization_edge(const hoNDArray <float> &field_map,
@@ -220,7 +274,8 @@ namespace Gadgetron {
     }
 
     void update_regularization_edge(Graph& graph, const hoNDArray<float> &field_map,
-                                    const hoNDArray<float> &proposed_field_map, const size_t source_idx,
+                                    const hoNDArray<float> &proposed_field_map, const hoNDArray<float> second_deriv,
+                                    const size_t source_idx,
                                     const size_t sink_idx, const size_t idx, const size_t idx2) {
 
         auto f_value1 = field_map[idx];
@@ -229,6 +284,8 @@ namespace Gadgetron {
         auto pf_value2 = proposed_field_map[idx2];
         float weight = std::norm(pf_value1 - f_value2) + std::norm(f_value1 - pf_value2)
                        - std::norm(f_value1 - f_value2) - std::norm(pf_value1 - pf_value2);
+
+        weight *= std::min(second_deriv[idx],second_deriv[idx2]);
 
         add_to_edge(idx,idx2,weight,graph);
         float aq = std::norm(pf_value1 - f_value2) - std::norm(f_value1 - f_value2);
@@ -253,7 +310,7 @@ namespace Gadgetron {
 
 
     Graph make_graph(const hoNDArray<float> &field_map, const hoNDArray<float> &proposed_field_map,
-                     const hoNDArray<float> &residual_diff_map) {
+                         const hoNDArray<float> &residual_diff_map, const hoNDArray<float> &second_deriv) {
 
         const auto dims = *field_map.get_dimensions();
 
@@ -271,17 +328,17 @@ namespace Gadgetron {
 
                 if (k1 < (dims[0]-1)){
                     size_t idx2 = idx+1;
-                    update_regularization_edge(graph,field_map,proposed_field_map,source_idx,sink_idx,idx,idx2);
+                    update_regularization_edge(graph,field_map,proposed_field_map,second_deriv, source_idx,sink_idx,idx,idx2);
                 }
 
 
                 if (k2 < (dims[1]-1)){
                     size_t idx2 = idx + dims[0];
-                    update_regularization_edge(graph,field_map,proposed_field_map,source_idx,sink_idx,idx,idx2);
+                    update_regularization_edge(graph,field_map,proposed_field_map,second_deriv, source_idx,sink_idx,idx,idx2);
                 }
                 if (k1 < (dims[0]-1) && k2 < (dims[1]-1)){
                     size_t idx2 = idx+dims[0]+1;
-                    update_regularization_edge(graph,field_map,proposed_field_map,source_idx,sink_idx,idx,idx2);
+                    update_regularization_edge(graph,field_map,proposed_field_map,second_deriv, source_idx,sink_idx,idx,idx2);
                 }
 
 
@@ -308,9 +365,9 @@ namespace Gadgetron {
 
 
     void update_field_map(hoNDArray<float> &field_map, const hoNDArray<float> &proposed_field_map,
-                          const hoNDArray<float> &residual_diff_map) {
+                          const hoNDArray<float> &residual_diff_map, const hoNDArray<float>& second_deriv) {
 
-        Graph graph = make_graph(field_map,proposed_field_map,residual_diff_map);
+        Graph graph = make_graph(field_map, proposed_field_map, residual_diff_map, second_deriv);
         size_t source_idx = field_map.get_number_of_elements();
         size_t sink_idx = source_idx+1;
 //        auto parities = boost::make_one_bit_color_map(num_vertices(graph), get(boost::vertex_index, graph));
@@ -325,7 +382,7 @@ namespace Gadgetron {
 
         auto color_map = boost::get(vertex_color,graph);
 
-        // Ok, let's figure out what labels were assined to the source.
+        // Ok, let's figure out what labels were assigned to the source.
         auto source_label = boost::get(color_map,source_idx);
         //And update the field_map
         for (size_t i = 0; i < field_map.get_number_of_elements(); i++){
@@ -334,44 +391,44 @@ namespace Gadgetron {
         }
         ;
     }
-
-    void add_regularization_edge(const hoNDArray<float> &field_map,
-                                 const hoNDArray<float> &proposed_field_map, const size_t source_idx,
-                                 const size_t sink_idx, std::vector<std::pair<size_t, size_t>> &edges,
-                                 std::vector<float> &edge_weights, const size_t idx, const size_t idx2) {
-        edges.emplace_back(idx, idx2);
-        auto f_value1 = field_map[idx];
-        auto pf_value1 = proposed_field_map[idx];
-        auto f_value2 = field_map[idx2];
-        auto pf_value2 = proposed_field_map[idx2];
-        float weight = std::norm(pf_value1 - f_value2) + std::norm(f_value1 - pf_value2)
-                       - std::norm(f_value1 - f_value2) - std::norm(pf_value1 - pf_value2);
-        edge_weights.push_back(weight);
-
-        float aq = std::norm(pf_value1 - f_value2) - std::norm(f_value1 - f_value2);
-
-        if (aq > 0){
-            edges.emplace_back(source_idx,idx);
-            edge_weights.push_back(aq);
-        } else {
-            edges.emplace_back(idx,sink_idx);
-            edge_weights.push_back(-aq);
-        }
-
-        float aj = std::norm(f_value1 - pf_value2) - std::norm(f_value1 - f_value2);
-        if (aj > 0){
-            edges.emplace_back(source_idx,idx2);
-            edge_weights.push_back(aj);
-
-        } else {
-            edges.emplace_back(idx2,sink_idx);
-            edge_weights.push_back(-aj);
-        }
-
-
-
-
-    }
+//
+//    void add_regularization_edge(const hoNDArray<float> &field_map,
+//                                 const hoNDArray<float> &proposed_field_map, const size_t source_idx,
+//                                 const size_t sink_idx, std::vector<std::pair<size_t, size_t>> &edges,
+//                                 std::vector<float> &edge_weights, const size_t idx, const size_t idx2) {
+//        edges.emplace_back(idx, idx2);
+//        auto f_value1 = field_map[idx];
+//        auto pf_value1 = proposed_field_map[idx];
+//        auto f_value2 = field_map[idx2];
+//        auto pf_value2 = proposed_field_map[idx2];
+//        float weight = std::norm(pf_value1 - f_value2) + std::norm(f_value1 - pf_value2)
+//                       - std::norm(f_value1 - f_value2) - std::norm(pf_value1 - pf_value2);
+//        edge_weights.push_back(weight);
+//
+//        float aq = std::norm(pf_value1 - f_value2) - std::norm(f_value1 - f_value2);
+//
+//        if (aq > 0){
+//            edges.emplace_back(source_idx,idx);
+//            edge_weights.push_back(aq);
+//        } else {
+//            edges.emplace_back(idx,sink_idx);
+//            edge_weights.push_back(-aq);
+//        }
+//
+//        float aj = std::norm(f_value1 - pf_value2) - std::norm(f_value1 - f_value2);
+//        if (aj > 0){
+//            edges.emplace_back(source_idx,idx2);
+//            edge_weights.push_back(aj);
+//
+//        } else {
+//            edges.emplace_back(idx2,sink_idx);
+//            edge_weights.push_back(-aj);
+//        }
+//
+//
+//
+//
+//    }
 
     hoNDArray <std::complex<float>>
     CalculateResidualMap(const std::vector<float> &echoTimes, uint16_t num_r2star, uint16_t num_fm, uint16_t nspecies,
@@ -543,9 +600,11 @@ namespace Gadgetron {
             }
         }
 
+        hoNDArray<float> second_deriv = approx_second_derivative(residual,fmIndex,field_map_strengths[1]-field_map_strengths[0]);
+        hoNDArray<std::vector<uint16_t>> local_min_indices;
         hoNDArray<float> field_map(X,Y);
-        for (int k2 = 0; k2 < Y; k2++){
-            for (int k1 =0; k1 < X; k1++){
+        for (size_t k2 = 0; k2 < Y; k2++){
+            for (size_t k1 =0; k1 < X; k1++){
                 field_map(k1,k2) = field_map_strengths[fmIndex(k1,k2)];
             }
         }
@@ -555,11 +614,11 @@ namespace Gadgetron {
 
         hoNDArray<float> residual_diff(X,Y);
 
-        for (int k2 = 0; k2 < Y; k2++)
-            for (int k1 = 0; k1 < Y; k1++)
+        for (size_t k2 = 0; k2 < Y; k2++)
+            for (size_t k1 = 0; k1 < X; k1++)
                 residual_diff(k1,k2) = residual(fmIndex(k1,k2),k1,k2)-residual(fmIndex(k1,k2)+1,k1,k2);
 
-        update_field_map(field_map,field_map_updated,residual_diff);
+        update_field_map(field_map,field_map_updated,residual_diff,second_deriv);
 
 
 
