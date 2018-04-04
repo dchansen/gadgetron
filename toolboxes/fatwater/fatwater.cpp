@@ -31,10 +31,12 @@
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/stoer_wagner_min_cut.hpp>
 #include <boost/graph/boykov_kolmogorov_max_flow.hpp>
+#include <boost/math/constants/constants.hpp>
 #include <armadillo>
+#include <random>
 
-#define GAMMABAR 42.576 // MHz/T
-#define PI 3.141592
+//#define GAMMABAR 42.576 // MHz/T
+
 
 using namespace boost;
 
@@ -76,13 +78,58 @@ Traits::edge_descriptor AddEdge(Traits::vertex_descriptor &v1,
 //}
 
 namespace Gadgetron {
+    static constexpr float GAMMABAR = 42.576;
+    static constexpr float PI = boost::math::constants::pi<float>();
+    static std::mt19937 rng_state(4242);
 
+    hoNDArray<uint16_t> create_field_map_proposal1(const hoNDArray<uint16_t>& field_map_index, const hoNDArray<std::vector<uint16_t>>& minima, const hoNDArray<float>& residuals, const std::vector<float> &field_map_strengths){
+
+        const size_t elements = field_map_index.get_number_of_elements();
+        hoNDArray<uint16_t> proposed_field_map_index(field_map_index.get_dimensions());
+        for (size_t i = 0; i < elements; i++){
+            auto & mins  = minima[i];
+            auto fbi = field_map_index[i];
+            proposed_field_map_index[i] = *std::find_if(mins.begin(),mins.end(), [&](auto fqi){return fqi > fbi;}); //Find smallest
+        }
+
+        return proposed_field_map_index;
+
+
+
+    }
+
+    hoNDArray<uint16_t> create_field_map_proposal2(const hoNDArray<uint16_t>& field_map_index, const hoNDArray<std::vector<uint16_t>>& minima, const hoNDArray<float>& residuals, const std::vector<float> &field_map_strengths){
+
+        const size_t elements = field_map_index.get_number_of_elements();
+        hoNDArray<uint16_t> proposed_field_map_index(field_map_index.get_dimensions());
+        for (size_t i = 0; i < elements; i++){
+            auto & mins  = minima[i];
+            auto fbi = field_map_index[i];
+            proposed_field_map_index[i] = *std::find_if(mins.rbegin(),mins.rend(), [&](auto fqi){return fqi < fbi;}); //Find smallest
+        }
+
+        return proposed_field_map_index;
+
+
+    }
+
+    hoNDArray<uint16_t> create_field_map_proposal_standard(const hoNDArray<uint16_t>& field_map_index,int sign, uint16_t max_field_value){
+
+
+        std::uniform_int_distribution<int> rng(1,3);
+
+        int step_size = sign*rng(rng_state);
+        hoNDArray<uint16_t> proposed_field_map_index(field_map_index.get_dimensions());
+        std::transform(field_map_index.begin(),field_map_index.end(),proposed_field_map_index.begin(),[=](uint16_t j){ return uint16_t(std::min(std::max(j+step_size,0),int(max_field_value)));});
+
+        return proposed_field_map_index;
+    }
 
     hoNDArray<std::vector<uint16_t>> find_local_minima(const hoNDArray<float>& residuals){
 
         const auto Y = residuals.get_size(2);
         const auto X = residuals.get_size(1);
-        hoNDArray<std::vector<uint16_t> result(X,Y);
+        hoNDArray<std::vector<uint16_t>> result(X,Y);
         const auto steps = residuals.get_size(0);
         for (size_t k2 = 0; k2 < Y; k2++){
             for (size_t k1 = 0; k1 < X; k1++){
@@ -353,19 +400,34 @@ namespace Gadgetron {
             }
         }
 
-
-
-
         return graph;
+    }
 
-
-
-
+    hoNDArray<float> create_field_map(const hoNDArray<uint16_t>& field_map_index, const std::vector<float>& field_map_strengths){
+        hoNDArray<float> field_map(field_map_index.get_dimensions());
+        std::transform(field_map_index.begin(),field_map_index.end(),field_map.begin(),[&](uint16_t i ){return field_map_strengths[i]; });
+        return field_map;
     }
 
 
-    void update_field_map(hoNDArray<float> &field_map, const hoNDArray<float> &proposed_field_map,
-                          const hoNDArray<float> &residual_diff_map, const hoNDArray<float>& second_deriv) {
+    void update_field_map(hoNDArray<uint16_t> &field_map_index, const hoNDArray<uint16_t> &proposed_field_map_index,
+                          const hoNDArray<float> &residuals_map, const hoNDArray<float>& second_deriv, std::vector<float> field_map_strengths) {
+
+        hoNDArray<float> field_map = create_field_map(field_map_index, field_map_strengths);
+        hoNDArray<float> proposed_field_map = create_field_map(proposed_field_map_index,field_map_strengths);
+
+        hoNDArray<float> residual_diff_map(field_map.get_dimensions());
+        const auto X = field_map.get_size(0);
+        const auto Y = field_map.get_size(1);
+
+        for (size_t k2 = 0; k2 < Y; k2++){
+            for(size_t k1 = 0; k1 < X; k1++){
+                residual_diff_map(k1,k2) = residuals_map(field_map_index(k1,k2),k1,k2) -
+                                           residuals_map(proposed_field_map_index(k1,k2),k1,k2);
+            }
+        }
+
+
 
         Graph graph = make_graph(field_map, proposed_field_map, residual_diff_map, second_deriv);
         size_t source_idx = field_map.get_number_of_elements();
@@ -387,9 +449,9 @@ namespace Gadgetron {
         //And update the field_map
         for (size_t i = 0; i < field_map.get_number_of_elements(); i++){
             if (boost::get(color_map,i) != source_label)
-                field_map[i] = proposed_field_map[i];
+                field_map_index[i] = proposed_field_map_index[i];
         }
-        ;
+
     }
 //
 //    void add_regularization_edge(const hoNDArray<float> &field_map,
@@ -600,28 +662,33 @@ namespace Gadgetron {
             }
         }
 
+
+
         hoNDArray<float> second_deriv = approx_second_derivative(residual,fmIndex,field_map_strengths[1]-field_map_strengths[0]);
-        hoNDArray<std::vector<uint16_t>> local_min_indices;
-        hoNDArray<float> field_map(X,Y);
-        for (size_t k2 = 0; k2 < Y; k2++){
-            for (size_t k1 =0; k1 < X; k1++){
-                field_map(k1,k2) = field_map_strengths[fmIndex(k1,k2)];
+        hoNDArray<std::vector<uint16_t>> local_min_indices = find_local_minima(residual);
+
+
+        std::uniform_int_distribution<int> coinflip(0,1);
+
+        auto fmIndex_update = fmIndex;
+        for (int i = 0; i < num_iterations; i++){
+
+
+            if ( coinflip(rng_state)  || i < 15){
+                if (coinflip(rng_state)){
+                    fmIndex_update = create_field_map_proposal1(fmIndex,local_min_indices,residual,field_map_strengths);
+                } else {
+                    fmIndex_update = create_field_map_proposal2(fmIndex,local_min_indices,residual,field_map_strengths);
+                }
+            } else {
+                fmIndex_update = create_field_map_proposal_standard(fmIndex,std::pow(-1,i),field_map_strengths.size());
             }
+            update_field_map(fmIndex,fmIndex_update,residual,second_deriv,field_map_strengths);
         }
 
-        hoNDArray<float> field_map_updated(field_map);
-        field_map_updated += field_map_strengths[1]-field_map_strengths[0];
-
-        hoNDArray<float> residual_diff(X,Y);
-
-        for (size_t k2 = 0; k2 < Y; k2++)
-            for (size_t k1 = 0; k1 < X; k1++)
-                residual_diff(k1,k2) = residual(fmIndex(k1,k2),k1,k2)-residual(fmIndex(k1,k2)+1,k1,k2);
-
-        update_field_map(field_map,field_map_updated,residual_diff,second_deriv);
 
 
-
+        hoNDArray<float> field_map = create_field_map(fmIndex,field_map_strengths);
 
 
 
