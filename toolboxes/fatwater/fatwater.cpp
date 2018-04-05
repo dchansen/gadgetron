@@ -89,7 +89,8 @@ namespace Gadgetron {
         for (size_t i = 0; i < elements; i++){
             auto & mins  = minima[i];
             auto fbi = field_map_index[i];
-            proposed_field_map_index[i] = *std::find_if(mins.begin(),mins.end(), [&](auto fqi){return fqi > fbi;}); //Find smallest
+            auto fqmi = std::find_if(mins.begin(),mins.end(), [&](auto fqi){return fqi > fbi;}); //Find smallest
+            proposed_field_map_index[i] = (fqmi == mins.end()) ? fbi : *fqmi;
         }
 
         return proposed_field_map_index;
@@ -105,7 +106,8 @@ namespace Gadgetron {
         for (size_t i = 0; i < elements; i++){
             auto & mins  = minima[i];
             auto fbi = field_map_index[i];
-            proposed_field_map_index[i] = *std::find_if(mins.rbegin(),mins.rend(), [&](auto fqi){return fqi < fbi;}); //Find smallest
+            auto fqmi = std::find_if(mins.rbegin(),mins.rend(), [&](auto fqi){return fqi < fbi;}); //Find smallest
+            proposed_field_map_index[i] = (fqmi == mins.rend()) ? fbi : *fqmi;
         }
 
         return proposed_field_map_index;
@@ -143,18 +145,21 @@ namespace Gadgetron {
 
                 for (size_t k0 = 1; k0 < steps-1; k0++){
                     if ((residuals(k0,k1,k2)-residuals(k0-1,k1,k2)) < 0 &&
-                        (residuals(k0,k1,k2)-residuals(k0+1,k1,k2)) > 0 &&
-                        residuals(k0,k1,k2) < 0.3*(max-min)+0.06){
+                        (residuals(k0+1,k1,k2)-residuals(k0,k1,k2)) > 0 ){
+
+                        //&&residuals(k0,k1,k2) < 0.3*(max-min)+min){
                         minima.push_back(k0);
                     }
 
                 }
-                auto comparator = [=](uint16_t i, uint16_t j){
+                auto comparator = [&](uint16_t i, uint16_t j){
                     return residuals(i,k1,k2) < residuals(j,k1,k2);
                 };
-
+                GDEBUG("Minima size %i\n",minima.size());
                 std::sort(minima.begin(),minima.end(),comparator);
+
                 result(k1,k2) = std::move(minima);
+//                GDEBUG("K1 %i K2 %i \n",k1,k2);
 
             }
         }
@@ -594,7 +599,7 @@ namespace Gadgetron {
 
 
 
-
+        GDEBUG("Calculating residiaul map");
         auto Ps = CalculateResidualMap(echoTimes, num_r2star, num_fm, nspecies, nte, phiMatrix, field_map_strengths,
                                        r2stars);
 
@@ -663,17 +668,17 @@ namespace Gadgetron {
         }
 
 
-
+        GDEBUG("Second derivative \n");
         hoNDArray<float> second_deriv = approx_second_derivative(residual,fmIndex,field_map_strengths[1]-field_map_strengths[0]);
+        GDEBUG("Finding local minima \n");
         hoNDArray<std::vector<uint16_t>> local_min_indices = find_local_minima(residual);
-
+        GDEBUG("Aaaand, done");
 
         std::uniform_int_distribution<int> coinflip(0,1);
 
         auto fmIndex_update = fmIndex;
         for (int i = 0; i < num_iterations; i++){
-
-
+            GDEBUG("Iteration number %i \n", i);
             if ( coinflip(rng_state)  || i < 15){
                 if (coinflip(rng_state)){
                     fmIndex_update = create_field_map_proposal1(fmIndex,local_min_indices,residual,field_map_strengths);
@@ -683,6 +688,7 @@ namespace Gadgetron {
             } else {
                 fmIndex_update = create_field_map_proposal_standard(fmIndex,std::pow(-1,i),field_map_strengths.size());
             }
+            GDEBUG("Proposal created");
             update_field_map(fmIndex,fmIndex_update,residual,second_deriv,field_map_strengths);
         }
 
