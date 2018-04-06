@@ -155,8 +155,8 @@ namespace Gadgetron {
                 auto comparator = [&](uint16_t i, uint16_t j){
                     return residuals(i,k1,k2) < residuals(j,k1,k2);
                 };
-                GDEBUG("Minima size %i\n",minima.size());
-                std::sort(minima.begin(),minima.end(),comparator);
+//                GDEBUG("Minima size %i\n",minima.size());
+//                std::sort(minima.begin(),minima.end(),comparator);
 
                 result(k1,k2) = std::move(minima);
 //                GDEBUG("K1 %i K2 %i \n",k1,k2);
@@ -453,7 +453,7 @@ namespace Gadgetron {
         auto source_label = boost::get(color_map,source_idx);
         //And update the field_map
         for (size_t i = 0; i < field_map.get_number_of_elements(); i++){
-            if (boost::get(color_map,i) != source_label)
+            if (boost::get(color_map,i) == source_label)
                 field_map_index[i] = proposed_field_map_index[i];
         }
 
@@ -543,8 +543,8 @@ namespace Gadgetron {
         // These will have to be specified in the XML file eventually
         std::pair<float, float> range_r2star = std::make_pair(0.0, 0.0);
         uint16_t num_r2star = 1;
-        std::pair<float, float> range_fm = std::make_pair(-80.0, 80.0);
-        uint16_t num_fm = 101;
+        std::pair<float, float> range_fm = std::make_pair(-400.0, 400.0);
+        uint16_t num_fm = 201;
         uint16_t num_iterations = 40;
         uint16_t subsample = 1;
         float lmap_power = 2.0;
@@ -731,7 +731,7 @@ namespace Gadgetron {
 
 
 
-                Cmat curWaterFat = arma::solve(psiMatrix.t()*psiMatrix,psiMatrix.t()*tempSignal,arma::solve_opts::equilibrate);
+                Cmat curWaterFat = arma::solve(psiMatrix,tempSignal);
 //                hesv(AhA, curWaterFat);
                 for (int k4 = 0; k4 < N; k4++) {
                     for (int k5 = 0; k5 < 2; k5++) { // 2 elements for water and fat currently
