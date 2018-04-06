@@ -78,6 +78,7 @@ Traits::edge_descriptor AddEdge(Traits::vertex_descriptor &v1,
 //}
 
 namespace Gadgetron {
+    using namespace std::complex_literals;
     static constexpr float GAMMABAR = 42.576;
     static constexpr float PI = boost::math::constants::pi<float>();
     static std::mt19937 rng_state(4242);
@@ -155,7 +156,7 @@ namespace Gadgetron {
                 auto comparator = [&](uint16_t i, uint16_t j){
                     return residuals(i,k1,k2) < residuals(j,k1,k2);
                 };
-                GDEBUG("Minima size %i\n",minima.size());
+
                 std::sort(minima.begin(),minima.end(),comparator);
 
                 result(k1,k2) = std::move(minima);
@@ -497,11 +498,40 @@ namespace Gadgetron {
 //
 //    }
 
+
     hoNDArray <std::complex<float>>
     CalculateResidualMap(const std::vector<float> &echoTimes, uint16_t num_r2star, uint16_t num_fm, uint16_t nspecies,
                          uint16_t nte, const arma::Mat<std::complex<float>> &phiMatrix,
-                         const std::vector<float> &field_map_strengths, const std::vector<float> &r2stars);
+                         const std::vector<float> &field_map_strengths, const std::vector<float> &r2stars) {
+        arma::Mat<std::complex<float>> psiMatrix(nte, nspecies);
+        hoNDArray<std::complex<float> > Ps(nte, nte, num_fm, num_r2star);
+        arma::Mat<std::complex<float>> P(nte, nte);
 
+        for (int k3 = 0; k3 < num_fm; k3++) {
+            float fm = field_map_strengths[k3];
+            for (int k4 = 0; k4 < num_r2star; k4++) {
+                float r2star = r2stars[k4];
+
+
+                for (int k1 = 0; k1 < nte; k1++) {
+                    auto curModulation = exp(-r2star * echoTimes[k1]* 2if * PI * echoTimes[k1] * fm);
+                    for (int k2 = 0; k2 < nspecies; k2++) {
+                        psiMatrix(k1, k2) = phiMatrix(k1,k2)*curModulation;
+                    }
+                }
+                arma::Mat<std::complex<float>> P = arma::eye<arma::Mat<std::complex<float>>>(nte, nte) - psiMatrix *
+                                                                                                         arma::solve(psiMatrix.t() * psiMatrix, psiMatrix.t());
+
+// Keep all projector matrices together
+                for (int k1 = 0; k1 < nte; k1++) {
+                    for (int k2 = 0; k2 < nte; k2++) {
+                        Ps(k1, k2, k3, k4) = P(k1, k2);
+                    }
+                }
+            }
+        }
+        return Ps;
+    }
     hoNDArray<std::complex<float> > fatwater_separation(hoNDArray<std::complex<float> > &data, FatWaterParameters p,
                                                         FatWaterAlgorithm a) {
 
@@ -533,18 +563,18 @@ namespace Gadgetron {
         GDEBUG("In toolbox - PrecessionIsClockwise: %d \n", precessionIsClockwise);
 
         //Get or set some algorithm parameters
-        //Gadgetron::ChemicalSpecies w = a.species_[0];
-        //Gadgetron::ChemicalSpecies f = a.species_[1];
+        Gadgetron::ChemicalSpecies w = a.species_[0];
+        Gadgetron::ChemicalSpecies f = a.species_[1];
 
-        //	GDEBUG("In toolbox - Fat peaks: %f  \n", f.ampFreq_[0].first);
-        //	GDEBUG("In toolbox - Fat peaks 2: %f  \n", f.ampFreq_[0].second);
+        	GDEBUG("In toolbox - Fat peaks: %f  \n", f.ampFreq_[0].first);
+        	GDEBUG("In toolbox - Fat peaks 2: %f  \n", f.ampFreq_[0].second);
 
         // Set some initial parameters so we can get going
         // These will have to be specified in the XML file eventually
-        std::pair<float, float> range_r2star = std::make_pair(0.0, 0.0);
-        uint16_t num_r2star = 1;
-        std::pair<float, float> range_fm = std::make_pair(-80.0, 80.0);
-        uint16_t num_fm = 101;
+        std::pair<float, float> range_r2star = std::make_pair(0.0, 100.0);
+        uint16_t num_r2star = 5;
+        std::pair<float, float> range_fm = std::make_pair(-200.0, 200.0);
+        uint16_t num_fm = 201;
         uint16_t num_iterations = 40;
         uint16_t subsample = 1;
         float lmap_power = 2.0;
@@ -571,8 +601,8 @@ namespace Gadgetron {
                 for (int k3 = 0; k3 < npeaks; k3++) {
                     relAmp = a.species_[k2].ampFreq_[k3].first;
                     freq_hz = fieldStrength * GAMMABAR * a.species_[k2].ampFreq_[k3].second;
-                    phiMatrix(k1, k2) += relAmp * std::complex<float>(cos(2 * PI * echoTimes[k1] * freq_hz),
-                                                                      sin(2 * PI * echoTimes[k1] * freq_hz));
+                    phiMatrix(k1, k2) += relAmp * exp(2if * PI * echoTimes[k1] * freq_hz);
+
                 }
                 GDEBUG("Cur value phiMatrix = (%f,%f) \n", phiMatrix(k1, k2).real(), phiMatrix(k1, k2).imag());
             }
@@ -620,7 +650,7 @@ namespace Gadgetron {
                     for (int k5 = 0; k5 < S; k5++) {
                         tempSignal(k5, k4) = data(k1, k2, 0, 0, k4, k5, 0);
                         if (k1 == 107 && k2 == 144) {
-                            tempSignal(k5, k4) = std::complex<float>(1000.0, 0.0);;
+//                            tempSignal(k5, k4) = std::complex<float>(1000.0, 0.0);;
                             GDEBUG(" (%d,%d) -->  %f + i %f \n", k5, k4, tempSignal(k5, k4).real(),
                                    tempSignal(k5, k4).imag());
                         }
@@ -668,6 +698,9 @@ namespace Gadgetron {
         }
 
 
+        for (int k0 = 0; k0 < residual.get_size(0); k0++)
+            std::cout << residual(k0,42,42) << " ";
+        std::cout << std::endl;
         GDEBUG("Second derivative \n");
         hoNDArray<float> second_deriv = approx_second_derivative(residual,fmIndex,field_map_strengths[1]-field_map_strengths[0]);
         GDEBUG("Finding local minima \n");
@@ -675,6 +708,8 @@ namespace Gadgetron {
         GDEBUG("Aaaand, done");
 
         std::uniform_int_distribution<int> coinflip(0,1);
+
+        fmIndex.fill(num_fm/2);
 
         auto fmIndex_update = fmIndex;
         for (int i = 0; i < num_iterations; i++){
@@ -750,39 +785,4 @@ namespace Gadgetron {
         return out;
     }
 
-    hoNDArray <std::complex<float>>
-    CalculateResidualMap(const std::vector<float> &echoTimes, uint16_t num_r2star, uint16_t num_fm, uint16_t nspecies,
-                         uint16_t nte, const arma::Mat<std::complex<float>> &phiMatrix,
-                         const std::vector<float> &field_map_strengths, const std::vector<float> &r2stars) {
-        arma::Mat<std::complex<float>> psiMatrix(nte, nspecies);
-        hoNDArray<std::complex<float> > Ps(nte, nte, num_fm, num_r2star);
-        arma::Mat<std::complex<float>> P(nte, nte);
-
-        for (int k3 = 0; k3 < num_fm; k3++) {
-            float fm = field_map_strengths[k3];
-            for (int k4 = 0; k4 < num_r2star; k4++) {
-                float r2star = r2stars[k4];
-
-
-                for (int k1 = 0; k1 < nte; k1++) {
-                    auto curModulation = exp(-r2star * echoTimes[k1]) * std::complex<float>(cos(2 * PI * echoTimes[k1] * fm),
-                                                                                            sin(2 * PI * echoTimes[k1] *
-                                                                                                fm));
-                    for (int k2 = 0; k2 < nspecies; k2++) {
-                        psiMatrix(k1, k2) = phiMatrix(k1,k2)*curModulation;
-                    }
-                }
-                arma::Mat<std::complex<float>> P = arma::eye<arma::Mat<std::complex<float>>>(nte, nte) - psiMatrix *
-                                                                                                         arma::solve(psiMatrix.t() * psiMatrix, psiMatrix.t());
-
-// Keep all projector matrices together
-                for (int k1 = 0; k1 < nte; k1++) {
-                    for (int k2 = 0; k2 < nte; k2++) {
-                        Ps(k1, k2, k3, k4) = P(k1, k2);
-                    }
-                }
-            }
-        }
-        return Ps;
-    }
 }
