@@ -6,11 +6,11 @@
 #include "hoNDArray_elemwise.h"
 #include "hoNDArray_reductions.h"
 #include "hoArmadillo.h"
-
+#include "ImageGraph.h"
 #include <boost/config.hpp>
-#include <boost/graph/push_relabel_max_flow.hpp>
-#include <boost/graph/adjacency_list.hpp>
-#include <boost/graph/read_dimacs.hpp>
+//#include <boost/graph/push_relabel_max_flow.hpp>
+//#include <boost/graph/adjacency_list.hpp>
+//#include <boost/graph/read_dimacs.hpp>
 #include <boost/graph/graph_utility.hpp>
 #include <boost/graph/boykov_kolmogorov_max_flow.hpp>
 //#include <boost/graph/edmonds_karp_max_flow.hpp>
@@ -27,10 +27,6 @@
 #include "curveFittingCostFunction.h"
 
 #include <boost/random.hpp>
-#include <boost/graph/compressed_sparse_row_graph.hpp>
-#include <boost/graph/adjacency_list.hpp>
-#include <boost/graph/stoer_wagner_min_cut.hpp>
-#include <boost/graph/boykov_kolmogorov_max_flow.hpp>
 #include <boost/math/constants/constants.hpp>
 #include <armadillo>
 #include <random>
@@ -203,17 +199,18 @@ namespace Gadgetron {
 //                            boost::property<boost::edge_reverse_t, Traits::edge_descriptor>>>> Graph;
 
 //
-    typedef boost::compressed_sparse_row_graph<directedS> Traits;
+//    typedef boost::compressed_sparse_row_graph<directedS> Traits;
+//
+//    typedef boost::compressed_sparse_row_graph<directedS,
+//            boost::property<boost::vertex_color_t, boost::default_color_type,
+//                    boost::property<boost::vertex_predecessor_t, Traits::edge_descriptor,
+//                            boost::property<boost::vertex_distance_t, float>>>,
+//            boost::property<boost::edge_capacity_t,float,
+//                    boost::property<boost::edge_residual_capacity_t,float,
+//                            boost::property<boost::edge_reverse_t, Traits::edge_descriptor>>>,no_property, std::size_t,std::size_t> Graph;
+    typedef ImageGraph Graph;
 
-    typedef boost::compressed_sparse_row_graph<directedS,
-            boost::property<boost::vertex_color_t, boost::default_color_type,
-                    boost::property<boost::vertex_predecessor_t, Traits::edge_descriptor,
-                            boost::property<boost::vertex_distance_t, float>>>,
-            boost::property<boost::edge_capacity_t,float,
-                    boost::property<boost::edge_residual_capacity_t,float,
-                            boost::property<boost::edge_reverse_t, Traits::edge_descriptor>>>,no_property, std::size_t,std::size_t> Graph;
-
-
+    /*
     void fix_reverse_edges(Graph &graph,const std::vector<size_t> dims,size_t source_idx,size_t sink_idx){
 
         auto edge_reverse_map = boost::get(boost::edge_reverse,graph);
@@ -259,8 +256,8 @@ namespace Gadgetron {
             }
         }
 
-    }
-
+    }*/
+/*
     Graph create_empty_graph(const hoNDArray<float> &field_map) {
         std::vector<std::pair<size_t, size_t>> edges;
 
@@ -313,9 +310,9 @@ namespace Gadgetron {
         fix_reverse_edges(graph,dims,source_idx,sink_idx);
         return graph;
 
-    }
+    }*/
 
-
+/*
     void add_to_edge(size_t idx, size_t idx2, float value, Graph& graph){
         auto edge_capacity_map = boost::get(boost::edge_capacity,graph);
         auto edge = boost::edge(idx,idx2,graph);
@@ -325,11 +322,11 @@ namespace Gadgetron {
         edge_capacity_map[edge.first] += value;
 
     }
-
+*/
     void update_regularization_edge(Graph& graph, const hoNDArray<float> &field_map,
                                     const hoNDArray<float> &proposed_field_map, const hoNDArray<float> second_deriv,
                                     const size_t source_idx,
-                                    const size_t sink_idx, const size_t idx, const size_t idx2) {
+                                    const size_t sink_idx, const size_t idx, const size_t idx2, const size_t edge_idx) {
 
         auto f_value1 = field_map[idx];
         auto pf_value1 = proposed_field_map[idx];
@@ -341,21 +338,32 @@ namespace Gadgetron {
         float lambda = std::min(second_deriv[idx],second_deriv[idx2]);
         weight *= lambda;
 
-        add_to_edge(idx,idx2,weight,graph);
+        auto& capacity_map = graph.edge_capacity_map;
+
+        capacity_map[edge_idx] += weight;
+        capacity_map[graph.reverse(edge_idx)] += weight;
+
         float aq = lambda*std::norm(pf_value1 - f_value2) - std::norm(f_value1 - f_value2);
 
         if (aq > 0){
-            add_to_edge(source_idx,idx,aq,graph);
+            capacity_map[graph.edge_from_source(idx)] += aq;
+//            capacity_map[graph.edge_to_source(idx)] += aq;
+
         } else {
-            add_to_edge(idx,sink_idx,-aq,graph);
+//            capacity_map[graph.edge_from_sink(idx)] -= aq;
+            capacity_map[graph.edge_to_sink(idx)] -= aq;
         }
 
         float aj = lambda*std::norm(f_value1 - pf_value2) - std::norm(f_value1 - f_value2);
-        if (aj > 0){
-            add_to_edge(source_idx,idx2,aj,graph);
+        if (aq > 0){
+            capacity_map[graph.edge_from_source(idx2)] += aj;
+//            capacity_map[graph.edge_to_source(idx2)] += aj;
+
         } else {
-            add_to_edge(idx2,sink_idx,-aj,graph);
+//            capacity_map[graph.edge_from_sink(idx2)] -= aj;
+            capacity_map[graph.edge_to_sink(idx2)] -= aj;
         }
+
 
     }
 
@@ -373,35 +381,42 @@ namespace Gadgetron {
         const size_t source_idx = field_map.get_number_of_elements();
         const size_t sink_idx = source_idx+1;
 
-        Graph graph = create_empty_graph(field_map);
+        Graph graph = Graph(dims[0],dims[1]);
 
+        auto& capacity_map = graph.edge_capacity_map;
         //Add regularization edges
         for (size_t k2 = 0; k2 < dims[1]; k2++){
             for (size_t k1 = 0; k1 < dims[0]; k1++){
                 size_t idx = k2*dims[0]+k1;
 
+
+
                 if (k1 < (dims[0]-1)){
                     size_t idx2 = idx+1;
-                    update_regularization_edge(graph,field_map,proposed_field_map,second_deriv, source_idx,sink_idx,idx,idx2);
+                    size_t edge = graph.edge_from_offset(idx,vector_td<int,2>(1,0));
+                    update_regularization_edge(graph,field_map,proposed_field_map,second_deriv, source_idx,sink_idx,idx,idx2,edge);
                 }
 
 
                 if (k2 < (dims[1]-1)){
                     size_t idx2 = idx + dims[0];
-                    update_regularization_edge(graph,field_map,proposed_field_map,second_deriv, source_idx,sink_idx,idx,idx2);
+                    size_t edge = graph.edge_from_offset(idx,vector_td<int,2>(0,1));
+                    update_regularization_edge(graph,field_map,proposed_field_map,second_deriv, source_idx,sink_idx,idx,idx2, edge);
                 }
                 if (k1 < (dims[0]-1) && k2 < (dims[1]-1)){
                     size_t idx2 = idx+dims[0]+1;
-                    update_regularization_edge(graph,field_map,proposed_field_map,second_deriv, source_idx,sink_idx,idx,idx2);
+                    size_t edge = graph.edge_from_offset(idx,vector_td<int,2>(1,1));
+                    update_regularization_edge(graph,field_map,proposed_field_map,second_deriv, source_idx,sink_idx,idx,idx2, edge);
                 }
 
 
                 float residual_diff = residual_diff_map[idx];
 
                 if (residual_diff > 0){
-                    add_to_edge(source_idx,idx,residual_diff,graph);
+                     capacity_map[graph.edge_from_source(idx)] += residual_diff;
+
                 } else {
-                    add_to_edge(idx,sink_idx,-residual_diff,graph);
+                    capacity_map[graph.edge_to_sink(idx)] -= residual_diff;
                 }
 
             }
@@ -444,8 +459,8 @@ namespace Gadgetron {
         // run the Stoer-Wagner algorithm to obtain the min-cut weight. `parities` is also filled in.
         // This is
 //        boost::stoer_wagner_min_cut(graph, boost::get(boost::edge_weight, graph), boost::parity_map(parities));
-        Graph::vertex_descriptor source = boost::vertex(source_idx,graph);
-        Graph::vertex_descriptor sink = boost::vertex(sink_idx,graph);
+        Graph::vertex_descriptor source = source_idx;
+        Graph::vertex_descriptor sink = sink_idx;
 
         boost::boykov_kolmogorov_max_flow(graph,source,sink);
 //        boost::push_relabel_max_flow(graph, source, sink);
