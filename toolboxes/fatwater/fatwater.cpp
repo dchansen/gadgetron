@@ -30,6 +30,7 @@
 #include <boost/math/constants/constants.hpp>
 #include <armadillo>
 #include <random>
+#include <cpu/hoNDArray_fileio.h>
 
 //#define GAMMABAR 42.576 // MHz/T
 
@@ -324,7 +325,7 @@ namespace Gadgetron {
     }
 */
     void update_regularization_edge(Graph& graph, const hoNDArray<float> &field_map,
-                                    const hoNDArray<float> &proposed_field_map, const hoNDArray<float> second_deriv,
+                                    const hoNDArray<float> &proposed_field_map, const hoNDArray<float>& second_deriv,
                                     const size_t source_idx,
                                     const size_t sink_idx, const size_t idx, const size_t idx2, const size_t edge_idx) {
 
@@ -452,27 +453,34 @@ namespace Gadgetron {
 
 
         Graph graph = make_graph(field_map, proposed_field_map, residual_diff_map, second_deriv);
-        size_t source_idx = field_map.get_number_of_elements();
-        size_t sink_idx = source_idx+1;
+        size_t source_idx = graph.source_vertex;
+
+        size_t sink_idx = graph.sink_vertex;
 //        auto parities = boost::make_one_bit_color_map(num_vertices(graph), get(boost::vertex_index, graph));
 //
         // run the Stoer-Wagner algorithm to obtain the min-cut weight. `parities` is also filled in.
         // This is
 //        boost::stoer_wagner_min_cut(graph, boost::get(boost::edge_weight, graph), boost::parity_map(parities));
-        Graph::vertex_descriptor source = source_idx;
-        Graph::vertex_descriptor sink = sink_idx;
+        Graph::vertex_descriptor source = graph.source_vertex;
+        Graph::vertex_descriptor sink = graph.sink_vertex;
 
-        boost::boykov_kolmogorov_max_flow(graph,source,sink);
+        float flow = boost::boykov_kolmogorov_max_flow(graph,source,sink);
+        GDEBUG("Floaw %f\n",flow);
 //        boost::push_relabel_max_flow(graph, source, sink);
 
         auto color_map = boost::get(vertex_color,graph);
 
         // Ok, let's figure out what labels were assigned to the source.
         auto source_label = boost::get(color_map,source_idx);
+        GDEBUG("Source color %i\n",source_label);
+        GDEBUG("Sink color %i\n",boost::get(color_map,sink_idx));
+        GDEBUG("First color %i\n",boost::get(color_map,0));
         //And update the field_map
         for (size_t i = 0; i < field_map.get_number_of_elements(); i++){
-            if (boost::get(color_map,i) != source_label)
+            if (boost::get(color_map,i) != boost::default_color_type::black_color) {
+//                GDEBUG("Updated");
                 field_map_index[i] = proposed_field_map_index[i];
+            }
         }
 
     }
@@ -715,12 +723,9 @@ namespace Gadgetron {
         }
 
 
-        for (int k0 = 0; k0 < residual.get_size(0); k0++)
-            std::cout << residual(k0,42,42) << " ";
-        std::cout << std::endl;
         GDEBUG("Second derivative \n");
         hoNDArray<float> second_deriv = approx_second_derivative(residual,fmIndex,field_map_strengths[1]-field_map_strengths[0]);
-        second_deriv *= 0.02f;
+        second_deriv *= 1000.0f;
         GDEBUG("Finding local minima \n");
         hoNDArray<std::vector<uint16_t>> local_min_indices = find_local_minima(residual);
         GDEBUG("Aaaand, done");
@@ -748,7 +753,7 @@ namespace Gadgetron {
 
 
         hoNDArray<float> field_map = create_field_map(fmIndex,field_map_strengths);
-
+        write_nd_array<float>(&field_map,"field_map.real");
 
 
         //Do final calculations once the field map is done

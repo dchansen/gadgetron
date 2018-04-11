@@ -6,6 +6,7 @@
 #include <boost/graph/graph_traits.hpp>
 
 #include <boost/iterator/counting_iterator.hpp>
+#include <vector>
 class ImageGraph;
 template<class T> T& get(std::vector<T>& vec, size_t i){ return vec[i];}
 class ReverseEdgeMap {
@@ -18,7 +19,7 @@ private:
     ImageGraph* graph;
 };
 
-size_t get(ReverseEdgeMap&, size_t);
+size_t get(ReverseEdgeMap& m, size_t i);
 
 
 template<class T, class R>
@@ -34,9 +35,9 @@ void put(std::vector<T> &vec, size_t i, R val) {
 class ImageGraph {
 public:
 
-    constexpr static char edges_per_vertex = 11; // 8 per vertex + source & sink
-    constexpr static char source_offset = 9;
-    constexpr static char sink_offset = 10;
+    constexpr static char edges_per_vertex = 10; // 8 per vertex + source & sink
+    constexpr static char source_offset = 8;
+    constexpr static char sink_offset = 9;
      static  Gadgetron::vector_td<int,2> index_to_offset[8];
     typedef size_t vertex_descriptor;
     typedef size_t vertices_size_type;
@@ -54,22 +55,29 @@ public:
     typedef boost::counting_iterator<size_t> edge_iterator;
 
 
-    ImageGraph(int x, int y): reverse_edge_map(this){
+    ImageGraph(int x, int y){
         dims_ ={x,y};
         num_image_vertices_ = size_t(x)*size_t(y);
         num_vertices_ = num_image_vertices_ + 2;
         num_edges_ = (edges_per_vertex+2)*num_image_vertices_;
         source_vertex = num_image_vertices_;
         sink_vertex = source_vertex+1;
-        edge_capacity_map = std::vector<float>(num_edges_,0);
-        edge_residual_capicty = std::vector<float>(num_edges_,0);
-        color_map = std::vector<boost::default_color_type>(num_vertices_,boost::default_color_type::gray_color);
-        vertex_distance = std::vector<float>(num_vertices_,0);
-        vertex_predecessor = std::vector<vertex_descriptor>(num_vertices_, 0);
+
+        setup_reverse_edge_map();
+        reset();
 
 
     }
 
+
+    void reset(){
+        edge_capacity_map = std::vector<float>(num_edges_,0);
+        edge_residual_capicty = std::vector<float>(num_edges_,0);
+        color_map = std::vector<boost::default_color_type>(num_vertices_,boost::default_color_type::black_color);
+        vertex_distance = std::vector<float>(num_vertices_,0);
+        vertex_predecessor = std::vector<vertex_descriptor>(num_vertices_, 0);
+
+    }
 
     vertex_iterator vertex_begin() const {
         return vertex_iterator(0);
@@ -79,7 +87,7 @@ public:
         return vertex_iterator(num_vertices_);
     }
 
-    size_t get_num_vertices() const {
+    size_t num_vertices() const {
         return num_vertices_;
     }
 
@@ -111,9 +119,11 @@ public:
 
 
     const vertex_descriptor target(edge_descriptor e) const {
+
+
         size_t normal_vertex_id = e/edges_per_vertex;
         if (normal_vertex_id < num_image_vertices_){
-            size_t index_offset = e-normal_vertex_id;
+            size_t index_offset = e-normal_vertex_id*edges_per_vertex;
             if (index_offset < edges_per_vertex-2) {
                 auto offset = index_to_offset[index_offset];
                 auto co = Gadgetron::idx_to_co(normal_vertex_id, dims_);
@@ -144,6 +154,7 @@ public:
         }
 
     }
+//    size_t out_degree(vertex_descriptor v) const;
 
     size_t out_degree(vertex_descriptor v) const {
         if (v < num_image_vertices_) {
@@ -159,28 +170,33 @@ public:
         vertex_descriptor sv = source(e);
         vertex_descriptor tv = target(e);
 
+
+        edge_descriptor  result;
         if (tv == source_vertex) {
-            return num_image_vertices_ * edges_per_vertex + sv;
+            result = num_image_vertices_ * edges_per_vertex + sv;
+        } else if (tv == sink_vertex){
+            result =num_image_vertices_* (edges_per_vertex+1)+sv;
+
+        } else if (sv == source_vertex){
+            result = tv*edges_per_vertex+edges_per_vertex-2;
+        } else if (sv == sink_vertex){
+            result = tv*edges_per_vertex+edges_per_vertex-1;
+        } else {
+
+            auto sco = Gadgetron::idx_to_co(sv, dims_);
+            auto tco = Gadgetron::idx_to_co(tv, dims_);
+
+            auto diff = sco - tco;
+
+
+            result =  tv * edges_per_vertex + get_edge_offset(diff);
         }
-        if (tv == sink_vertex){
-            return num_image_vertices_* (edges_per_vertex+1)+sv;
 
-        }
-        if (sv == source_vertex){
-            return tv*edges_per_vertex+edges_per_vertex-2;
-        }
-        if (sv == sink_vertex){
-            return tv*edges_per_vertex+edges_per_vertex-1;
-        }
-
-        auto sco = Gadgetron::idx_to_co(sv,dims_);
-        auto tco = Gadgetron::idx_to_co(sv,dims_);
-
-        auto diff = sco-tco;
-
-
-
-        return tv*edges_per_vertex+get_edge_offset(diff);
+        auto result_target = target(result);
+        auto result_source = source(result);
+        assert(sv == result_target);
+        assert(tv == result_source);
+        return result;
     }
 
 
@@ -189,27 +205,28 @@ public:
 
         if (diff[0] == 0) {
             if (diff[1] == -1 || diff[1] == dims_[1]-1) {
-                offset = 0;
+                offset = 6;
             } else  {
-                offset = 4;
+                offset = 2;
             }
         } else if (diff[0] == -1 || diff[0] == dims_[0]-1){
             if (diff[1] == -1 || diff[1] == dims_[1]-1) {
-                offset = 1;
+                offset = 7;
             } else if (diff[1] == 0){
-                offset = 2;
+                offset = 0;
             } else {
-                offset = 3;
+                offset = 1;
             }
         } else {
             if (diff[1] == -1 || diff[1] == dims_[1]-1) {
-                offset = 7;
-            } else if (diff[1] ==0){
-                offset = 6;
-            } else {
                 offset = 5;
+            } else if (diff[1] ==0){
+                offset = 4;
+            } else {
+                offset = 3;
             }
         }
+//        assert(diff == index_to_offset[offset]);
         return offset;
     }
 
@@ -234,59 +251,11 @@ public:
         return v*edges_per_vertex+get_edge_offset(offset);
     }
 
-//    std::pair<edge_descriptor, bool> edge(vertex_descriptor s, vertex_descriptor t){
-//
-//        //Check if vertices are valid
-//        if (s >= num_vertices_ || t >= num_vertices_ ){
-//            return std::make_pair(std::numeric_limits<size_t>::max(),false);
-//        }
-//        //Check if both source and target are in the sink
-//        if (s > num_image_vertices_ && t > num_image_vertices_) {
-//            return std::make_pair(std::numeric_limits<size_t>::max(),false);
-//        }
-//        //No self loops
-//        if (s == t ) {
-//            return std::make_pair(std::numeric_limits<size_t>::max(),false);
-//        }
-//
-//
-//        if (s == source_vertex){
-//            edge_descriptor  e = num_image_vertices_*edges_per_vertex + t;
-//            return std::make_pair(e,true);
-//        }
-//        if (s == sink_vertex){
-//            edge_descriptor  e = num_image_vertices_*(edges_per_vertex+1) + t;
-//            return std::make_pair(e,true);
-//        }
-//
-//        if (t == source_vertex){
-//            edge_descriptor e = edges_per_vertex*s+edges_per_vertex-2;
-//            return std::make_pair(e,true);
-//        }
-//        if (t == sink_vertex){
-//            edge_descriptor e = edges_per_vertex*s+edges_per_vertex-1;
-//            return std::make_pair(e,true);
-//        }
-//
-//        auto sco = Gadgetron::idx_to_co(s,dims_);
-//        auto tco = Gadgetron::idx_to_co(t,dims_);
-//
-//        auto offset = tco-sco+dims_;
-//        //Handle wrapping boundaries
-//        if (offset[0] == (dims_[0]-1)) offset[0] = -1;
-//        if (offset[0] == -(dims_[0]-1)) offset[0] = 1;
-//        if (offset[1] == (dims_[1]-1)) offset[1] = -1;
-//        if (offset[1] == -(dims_[1]-1)) offset[1] = -1;
-//
-//
-//
-//
-//    };
 
 
 
 
-     size_t get_num_edges() const {
+     size_t num_edges() const {
         return num_edges_;
     }
 
@@ -295,17 +264,26 @@ public:
     std::vector<boost::default_color_type> color_map;
     std::vector<float> vertex_distance;
     std::vector<vertex_descriptor> vertex_predecessor;
+    std::vector<edge_descriptor> reverse_edge_map;
 
     boost::identity_property_map vertex_index_map;
-    ReverseEdgeMap reverse_edge_map;
+//    ReverseEdgeMap reverse_edge_map;
 
-
+    vertex_descriptor source_vertex;
+    vertex_descriptor sink_vertex;
 private:
+
+    void setup_reverse_edge_map(){
+        reverse_edge_map = std::vector<edge_descriptor>(num_edges_);
+        for (edge_descriptor edge = 0; edge < num_edges_; edge++){
+            reverse_edge_map[edge] = reverse(edge);
+        }
+
+    }
     size_t num_vertices_;
     size_t num_image_vertices_;
     size_t num_edges_;
-    vertex_descriptor source_vertex;
-    vertex_descriptor sink_vertex;
+
     Gadgetron::vector_td<int,2> dims_;
 
 
@@ -313,118 +291,67 @@ private:
 
 };
 
-
-std::pair<ImageGraph::vertex_iterator, ImageGraph::vertex_iterator > vertices(const ImageGraph& g){
-
-    return std::make_pair(g.vertex_begin(),g.vertex_end());
-
-};
+std::pair<ImageGraph::vertex_iterator, ImageGraph::vertex_iterator > vertices(const ImageGraph& g);
 
 
-size_t num_vertices(const ImageGraph& g){
-    return g.get_num_vertices();
-}
+size_t num_vertices(const ImageGraph& g);
 
-size_t num_edges(const ImageGraph& g){
-    return g.get_num_edges();
-}
+size_t num_edges(const ImageGraph& g);
 
-ImageGraph::vertex_descriptor source(ImageGraph::edge_descriptor e, const ImageGraph& g){
-    return g.source(e);
-}
-ImageGraph::vertex_descriptor target(ImageGraph::edge_descriptor e, const ImageGraph& g){
-    return g.target(e);
-}
+ImageGraph::vertex_descriptor source(ImageGraph::edge_descriptor e, const ImageGraph& g);
 
-std::pair<ImageGraph::edge_iterator, ImageGraph::edge_iterator> out_edges(ImageGraph::vertex_descriptor v, const ImageGraph& g){
-    return g.out_edges(v);
-};
+ImageGraph::vertex_descriptor target(ImageGraph::edge_descriptor e, const ImageGraph& g);
 
-size_t out_degree(ImageGraph::vertex_descriptor v, const ImageGraph& g){
-    return g.out_degree(v);
-}
 
-std::pair<ImageGraph::edge_iterator, ImageGraph::edge_iterator> edges(const ImageGraph& g){
-    return std::make_pair(g.edge_begin(),g.edge_end());
-};
+std::pair<ImageGraph::edge_iterator, ImageGraph::edge_iterator> out_edges(ImageGraph::vertex_descriptor v, const ImageGraph& g);
+size_t out_degree(ImageGraph::vertex_descriptor v, const ImageGraph& g);
+
+
+std::pair<ImageGraph::edge_iterator, ImageGraph::edge_iterator> edges(const ImageGraph& g);
 
 namespace boost {
 
-    std::vector<float> &get(boost::edge_capacity_t, ImageGraph &g) {
-        return g.edge_capacity_map;
-    }
+    std::vector<float> &get(boost::edge_capacity_t, ImageGraph &g);
 
-    std::vector<float> &get(boost::edge_residual_capacity_t, ImageGraph &g) {
-        return g.edge_residual_capicty;
-    }
+    std::vector<float> &get(boost::edge_residual_capacity_t, ImageGraph &g);
 
-    std::vector<boost::default_color_type> &get(boost::vertex_color_t, ImageGraph &g) {
-        return g.color_map;
-    }
+    std::vector<boost::default_color_type> &get(boost::vertex_color_t, ImageGraph &g);
 
-    std::vector<float> &get(boost::vertex_distance_t, ImageGraph &g) {
-        return g.vertex_distance;
-    }
+    std::vector<float> &get(boost::vertex_distance_t, ImageGraph &g);
 
-    const identity_property_map &get(boost::vertex_index_t, const ImageGraph &g) {
-        return g.vertex_index_map;
-    }
+    const identity_property_map &get(boost::vertex_index_t, const ImageGraph &g);
 
-    ReverseEdgeMap &get(boost::edge_reverse_t, ImageGraph &g) {
-        return g.reverse_edge_map;
-    }
+    std::vector<size_t> &get(boost::edge_reverse_t, ImageGraph &g);
 
-    std::vector<size_t> &get(boost::vertex_predecessor_t, ImageGraph &g) {
-        return g.vertex_predecessor;
-    }
-    const std::vector<float> &get(boost::edge_capacity_t, const ImageGraph &g) {
-        return g.edge_capacity_map;
-    }
+    std::vector<size_t> &get(boost::vertex_predecessor_t, ImageGraph &g);
+    const std::vector<float> &get(boost::edge_capacity_t, const ImageGraph &g);
 
-    const std::vector<float> &get(boost::edge_residual_capacity_t, const ImageGraph &g) {
-        return g.edge_residual_capicty;
-    }
+    const std::vector<float> &get(boost::edge_residual_capacity_t, const ImageGraph &g);
 
-    const std::vector<boost::default_color_type> &get(boost::vertex_color_t, const ImageGraph &g) {
-        return g.color_map;
-    }
+    const std::vector<boost::default_color_type> &get(boost::vertex_color_t, const ImageGraph &g);
 
-    const std::vector<float> &get(boost::vertex_distance_t, const ImageGraph &g) {
-        return g.vertex_distance;
-    }
+    const std::vector<float> &get(boost::vertex_distance_t, const ImageGraph &g);
 
 
 
-    const ReverseEdgeMap &get(boost::edge_reverse_t, const ImageGraph &g) {
-        return g.reverse_edge_map;
-    }
-    const std::vector<size_t> &get(boost::vertex_predecessor_t, const ImageGraph &g) {
-        return g.vertex_predecessor;
-    }
+    const std::vector<size_t> &get(boost::edge_reverse_t, const ImageGraph &g);
+    const std::vector<size_t> &get(boost::vertex_predecessor_t, const ImageGraph &g);
 
 
 
 
 
 
-    float &get(std::vector<float>& vec, size_t i){
-        return vec[i];
-    }
 
-    const float &get(const std::vector<float>& vec, size_t i){
-        return vec[i];
-    }
 
     template<class T>
     const T &get(const std::vector<T> &vec, size_t i) {
         return vec[i];
     }
-
-
-
-
-
-
+/*
+    float get<float>(std::vector<float>&, size_t);
+    const float get<float>(const std::vector<float>&, size_t);
+*/
 
 
 
@@ -498,7 +425,7 @@ namespace boost {
 
     template<> struct property_map<ImageGraph,edge_capacity_t>{ typedef std::vector<float> type; typedef std::vector<float> const_type; };
     template<> struct property_map<ImageGraph,edge_residual_capacity_t>{ typedef std::vector<float> type; typedef std::vector<float> const_type;};
-    template<> struct property_map<ImageGraph,edge_reverse_t >{ typedef ReverseEdgeMap type; typedef ReverseEdgeMap const_type;};
+    template<> struct property_map<ImageGraph,edge_reverse_t >{ typedef std::vector<size_t> type; typedef std::vector<size_t> const_type;};
 
     template<> struct property_map<ImageGraph,vertex_color_t >{ typedef std::vector<default_color_type > type; typedef std::vector<default_color_type > const_type;};
     template<> struct property_map<ImageGraph,vertex_distance_t >{ typedef std::vector<float > type; typedef std::vector<float > const_type;};
