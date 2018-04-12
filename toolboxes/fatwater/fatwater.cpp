@@ -8,7 +8,7 @@
 #include "hoArmadillo.h"
 #include "ImageGraph.h"
 #include <boost/config.hpp>
-//#include <boost/graph/push_relabel_max_flow.hpp>
+#include <boost/graph/push_relabel_max_flow.hpp>
 //#include <boost/graph/adjacency_list.hpp>
 //#include <boost/graph/read_dimacs.hpp>
 #include <boost/graph/graph_utility.hpp>
@@ -133,15 +133,9 @@ namespace Gadgetron {
         const auto steps = residuals.get_size(0);
         for (size_t k2 = 0; k2 < Y; k2++){
             for (size_t k1 = 0; k1 < X; k1++){
-                float min = residuals(0,k1,k2);
-                float max = min;
-                std::vector<uint16_t> minima;
-                for (size_t k0 = 0; k0 < steps; k0++){
-                    min = std::min(min,residuals(k0,k1,k2));
-                    max = std::max(max,residuals(k0,k1,k2));
-                }
 
-                for (size_t k0 = 1; k0 < steps-1; k0++){
+                std::vector<uint16_t> minima;
+                    for (size_t k0 = 1; k0 < steps-1; k0++){
                     if ((residuals(k0,k1,k2)-residuals(k0-1,k1,k2)) < 0 &&
                         (residuals(k0+1,k1,k2)-residuals(k0,k1,k2)) > 0 ){
 
@@ -154,7 +148,7 @@ namespace Gadgetron {
                     return residuals(i,k1,k2) < residuals(j,k1,k2);
                 };
 
-                std::sort(minima.begin(),minima.end(),comparator);
+//                std::sort(minima.begin(),minima.end(),comparator);
 
                 result(k1,k2) = std::move(minima);
 //                GDEBUG("K1 %i K2 %i \n",k1,k2);
@@ -164,20 +158,51 @@ namespace Gadgetron {
         return result;
     }
 
-    hoNDArray<float> approx_second_derivative(const hoNDArray<float> & residuals, const hoNDArray<uint16_t>& fmIndex, float step_size ){
-        hoNDArray<float> second_deriv(fmIndex.get_dimensions());
+    hoNDArray<float> approx_second_derivative(const hoNDArray<float> & residuals, const hoNDArray<std::vector<uint16_t>>& local_min_indices, float step_size ){
+        hoNDArray<float> second_deriv(local_min_indices.get_dimensions());
 
         const auto Y = second_deriv.get_size(1);
         const auto X = second_deriv.get_size(0);
+        const auto nfields = residuals.get_size(0);
 
         for (uint16_t k2 = 0; k2 < Y; k2++) {
             for (uint16_t k1 = 0; k1 < X; k1++) {
-                second_deriv(k1, k2) =
-                        (residuals(fmIndex(k1, k2) - 1, k1, k2) + residuals(fmIndex(k1, k2) + 1, k1, k2) -
-                         2 * residuals(fmIndex(k1, k2), k1, k2)) / (step_size * step_size);
+
+                /*
+                const auto& min_indices = local_min_indices(k1,k2);
+                size_t minimum;
+                if (min_indices.empty()) {
+                    if (residuals(0,k1,k2) < residuals(nfields-1,k1,k2)){
+                        minimum = 10;
+                    } else {
+                        minimum = nfields-10;
+                    }
+
+                } else {
+
+                    minimum = *std::min_element(min_indices.begin(), min_indices.end(), [&](auto i, auto j) {
+                        return residuals(i, k1, k2) < residuals(j, k1, k2);
+                    });
+                }
+*/                  int minimum = 9;
+                    auto min_val = residuals(minimum,k1,k2);
+                    for (int i = 9; i < (nfields-10); i++) {
+                        auto min_val2 = residuals(i, k1, k2);
+                        if (min_val2 < min_val) {
+                            minimum = i;
+                            min_val = min_val2;
+                        }
+                    }
+
+
+                    second_deriv(k1, k2) =
+                            (residuals(minimum - 1, k1, k2) + residuals(minimum + 1, k1, k2) -
+                             2 * residuals(minimum, k1, k2)) / (step_size * step_size);
+
             }
         }
 
+//        second_deriv.fill(10.0f);
         return second_deriv;
 
 
@@ -336,33 +361,41 @@ namespace Gadgetron {
         float weight = std::norm(pf_value1 - f_value2) + std::norm(f_value1 - pf_value2)
                        - std::norm(f_value1 - f_value2) - std::norm(pf_value1 - pf_value2);
 
+        assert(weight >= 0);
+
         float lambda = std::min(second_deriv[idx],second_deriv[idx2]);
         weight *= lambda;
+
+        assert(lambda >= 0);
 
         auto& capacity_map = graph.edge_capacity_map;
 
         capacity_map[edge_idx] += weight;
         capacity_map[graph.reverse(edge_idx)] += weight;
 
-        float aq = lambda*std::norm(pf_value1 - f_value2) - std::norm(f_value1 - f_value2);
+        {
+            float aq = lambda * std::norm(pf_value1 - f_value2) - std::norm(f_value1 - f_value2);
 
-        if (aq > 0){
-            capacity_map[graph.edge_from_source(idx)] += aq;
+            if (aq > 0) {
+                capacity_map[graph.edge_from_source(idx)] += aq;
 //            capacity_map[graph.edge_to_source(idx)] += aq;
 
-        } else {
+            } else {
 //            capacity_map[graph.edge_from_sink(idx)] -= aq;
-            capacity_map[graph.edge_to_sink(idx)] -= aq;
+                capacity_map[graph.edge_to_sink(idx)] -= aq;
+            }
         }
 
-        float aj = lambda*std::norm(f_value1 - pf_value2) - std::norm(f_value1 - f_value2);
-        if (aq > 0){
-            capacity_map[graph.edge_from_source(idx2)] += aj;
+        {
+            float aj = lambda * std::norm(f_value1 - pf_value2) - std::norm(f_value1 - f_value2);
+            if (aj > 0) {
+                capacity_map[graph.edge_from_source(idx2)] += aj;
 //            capacity_map[graph.edge_to_source(idx2)] += aj;
 
-        } else {
+            } else {
 //            capacity_map[graph.edge_from_sink(idx2)] -= aj;
-            capacity_map[graph.edge_to_sink(idx2)] -= aj;
+                capacity_map[graph.edge_to_sink(idx2)] -= aj;
+            }
         }
 
 
@@ -377,7 +410,7 @@ namespace Gadgetron {
 
         const auto dims = *field_map.get_dimensions();
 
-
+        GDEBUG("Minimum field map %f %f\n",min(&proposed_field_map),max(&proposed_field_map));
 
         const size_t source_idx = field_map.get_number_of_elements();
         const size_t sink_idx = source_idx+1;
@@ -427,8 +460,9 @@ namespace Gadgetron {
     }
 
     hoNDArray<float> create_field_map(const hoNDArray<uint16_t>& field_map_index, const std::vector<float>& field_map_strengths){
+        const uint16_t max_val = field_map_strengths.size()-1;
         hoNDArray<float> field_map(field_map_index.get_dimensions());
-        std::transform(field_map_index.begin(),field_map_index.end(),field_map.begin(),[&](uint16_t i ){return field_map_strengths[i]; });
+        std::transform(field_map_index.begin(),field_map_index.end(),field_map.begin(),[&](uint16_t i ){return field_map_strengths[std::min(i,max_val)]; });
         return field_map;
     }
 
@@ -445,43 +479,52 @@ namespace Gadgetron {
 
         for (size_t k2 = 0; k2 < Y; k2++){
             for(size_t k1 = 0; k1 < X; k1++){
-                residual_diff_map(k1,k2) = residuals_map(field_map_index(k1,k2),k1,k2) -
+                residual_diff_map(k1,k2) = residuals_map(field_map_index(k1,k2),k1,k2)-
                                            residuals_map(proposed_field_map_index(k1,k2),k1,k2);
+
+
             }
         }
 
 
 
         Graph graph = make_graph(field_map, proposed_field_map, residual_diff_map, second_deriv);
-        size_t source_idx = graph.source_vertex;
 
-        size_t sink_idx = graph.sink_vertex;
+//        auto minimum = *std::min_element(graph.edge_capacity_map.begin(),graph.edge_capacity_map.end());
+//        assert(minimum >= 0);
+
+
 //        auto parities = boost::make_one_bit_color_map(num_vertices(graph), get(boost::vertex_index, graph));
 //
         // run the Stoer-Wagner algorithm to obtain the min-cut weight. `parities` is also filled in.
         // This is
-//        boost::stoer_wagner_min_cut(graph, boost::get(boost::edge_weight, graph), boost::parity_map(parities));
+
         Graph::vertex_descriptor source = graph.source_vertex;
         Graph::vertex_descriptor sink = graph.sink_vertex;
 
-        float flow = boost::boykov_kolmogorov_max_flow(graph,source,sink);
-        GDEBUG("Floaw %f\n",flow);
-//        boost::push_relabel_max_flow(graph, source, sink);
+//        float flow = boost::boykov_kolmogorov_max_flow(graph,source,sink);
+        float flow = boost::boykov_kolmogorov_max_flow(graph,graph.edge_capacity_map,graph.edge_residual_capicty,
+                                                       graph.reverse_edge_map,graph.vertex_predecessor,graph.color_map.data(),
+                                                       graph.vertex_distance,graph.vertex_index_map,source,sink);
 
+        GDEBUG("Floaw %f\n",flow);
         auto color_map = boost::get(vertex_color,graph);
 
         // Ok, let's figure out what labels were assigned to the source.
-        auto source_label = boost::get(color_map,source_idx);
+        auto source_label = boost::get(color_map,source);
         GDEBUG("Source color %i\n",source_label);
-        GDEBUG("Sink color %i\n",boost::get(color_map,sink_idx));
+        GDEBUG("Sink color %i\n",boost::get(color_map,sink));
         GDEBUG("First color %i\n",boost::get(color_map,0));
         //And update the field_map
+        size_t updated_voxels = 0;
         for (size_t i = 0; i < field_map.get_number_of_elements(); i++){
             if (boost::get(color_map,i) != boost::default_color_type::black_color) {
 //                GDEBUG("Updated");
+                updated_voxels++;
                 field_map_index[i] = proposed_field_map_index[i];
             }
         }
+        GDEBUG("Voxels updated %i Voxels kept %i \n",updated_voxels,field_map.get_number_of_elements()-updated_voxels);
 
     }
 //
@@ -666,7 +709,7 @@ namespace Gadgetron {
         hoNDArray<float> residual(num_fm, X, Y);
         hoNDArray<uint16_t> r2starIndex(X, Y, num_fm);
         hoNDArray<uint16_t> fmIndex(X, Y);
-        float curResidual, minResidual, minResidual2;
+        float curResidual, minResidual;
         Cmat P(nte,nte);
         for (int k1 = 0; k1 < X; k1++) {
             for (int k2 = 0; k2 < Y; k2++) {
@@ -683,7 +726,6 @@ namespace Gadgetron {
                     }
                 }
 
-                minResidual2 = 1.0 + arma::norm(tempSignal);
 
                 for (int k3 = 0; k3 < num_fm; k3++) {
 
@@ -710,10 +752,6 @@ namespace Gadgetron {
                     }
                     residual(k3, k1, k2) = minResidual;
 
-                    if (minResidual < minResidual2) {
-                        minResidual2 = minResidual;
-                        fmIndex(k1, k2) = k3;
-                    }
 
                     if (k1 == 107 && k2 == 144) {
                         GDEBUG(" %f -->  %f \n", field_map_strengths[k3], minResidual);
@@ -723,12 +761,15 @@ namespace Gadgetron {
         }
 
 
-        GDEBUG("Second derivative \n");
-        hoNDArray<float> second_deriv = approx_second_derivative(residual,fmIndex,field_map_strengths[1]-field_map_strengths[0]);
-        second_deriv *= 1000.0f;
-        GDEBUG("Finding local minima \n");
+
         hoNDArray<std::vector<uint16_t>> local_min_indices = find_local_minima(residual);
-        GDEBUG("Aaaand, done");
+        hoNDArray<float> second_deriv = approx_second_derivative(residual,local_min_indices,field_map_strengths[1]-field_map_strengths[0]);
+        GDEBUG("Second deriv min  %f median %f max %f\n",min(&second_deriv),median(&second_deriv),max(&second_deriv));
+
+        write_nd_array(&second_deriv,"deriv.real");
+
+        second_deriv *= lambda;
+
 
         std::uniform_int_distribution<int> coinflip(0,1);
 
@@ -748,6 +789,8 @@ namespace Gadgetron {
             }
             GDEBUG("Proposal created");
             update_field_map(fmIndex,fmIndex_update,residual,second_deriv,field_map_strengths);
+            GDEBUG("Field map %i %i\n",*std::min_element(fmIndex.begin(),fmIndex.end()),*std::max_element(fmIndex.begin(),fmIndex.end()));
+            GDEBUG("Field map %i %i\n",*std::min_element(fmIndex_update.begin(),fmIndex_update.end()),*std::max_element(fmIndex_update.begin(),fmIndex_update.end()));
         }
 
 

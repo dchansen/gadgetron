@@ -7,20 +7,8 @@
 
 #include <boost/iterator/counting_iterator.hpp>
 #include <vector>
-class ImageGraph;
+
 template<class T> T& get(std::vector<T>& vec, size_t i){ return vec[i];}
-class ReverseEdgeMap {
-public:
-    ReverseEdgeMap(ImageGraph* g) : graph(g){};
-
-    size_t operator[](size_t e) const;
-
-private:
-    ImageGraph* graph;
-};
-
-size_t get(ReverseEdgeMap& m, size_t i);
-
 
 template<class T, class R>
 void put(std::vector<T> &vec, size_t i, R val) {
@@ -73,7 +61,7 @@ public:
     void reset(){
         edge_capacity_map = std::vector<float>(num_edges_,0);
         edge_residual_capicty = std::vector<float>(num_edges_,0);
-        color_map = std::vector<boost::default_color_type>(num_vertices_,boost::default_color_type::black_color);
+        color_map = std::vector<boost::default_color_type>(num_vertices_,boost::default_color_type::gray_color);
         vertex_distance = std::vector<float>(num_vertices_,0);
         vertex_predecessor = std::vector<vertex_descriptor>(num_vertices_, 0);
 
@@ -369,15 +357,6 @@ namespace boost {
         typedef T reference;
         typedef lvalue_property_map_tag category;
     };
-
-    template<> struct property_traits<ReverseEdgeMap> {
-        typedef ImageGraph::edge_descriptor value_type;
-        typedef size_t key_type;
-        typedef value_type& reference;
-        typedef readable_property_map_tag category;
-    };
-
-
 
     typedef ImageGraph* image_graph_ptr;
     typedef const ImageGraph* image_const_graph_ptr;
