@@ -87,8 +87,8 @@ namespace Gadgetron {
         for (size_t i = 0; i < elements; i++){
             auto & mins  = minima[i];
             auto fbi = field_map_index[i];
-            auto fqmi = std::find_if(mins.begin(),mins.end(), [&](auto fqi){return fqi > fbi;}); //Find smallest
-            proposed_field_map_index[i] = (fqmi == mins.end()) ? fbi : *fqmi;
+            auto fqmi = std::find_if(mins.begin(),mins.end(), [&](auto fqi){return fqi > (fbi+20);}); //Find smallest
+            proposed_field_map_index[i] = (fqmi == mins.end()) ? fbi+1 : *fqmi;
         }
 
         return proposed_field_map_index;
@@ -104,8 +104,8 @@ namespace Gadgetron {
         for (size_t i = 0; i < elements; i++){
             auto & mins  = minima[i];
             auto fbi = field_map_index[i];
-            auto fqmi = std::find_if(mins.rbegin(),mins.rend(), [&](auto fqi){return fqi < fbi;}); //Find smallest
-            proposed_field_map_index[i] = (fqmi == mins.rend()) ? fbi : *fqmi;
+            auto fqmi = std::find_if(mins.rbegin(),mins.rend(), [&](auto fqi){return fqi < (fbi-20);}); //Find smallest
+            proposed_field_map_index[i] = (fqmi == mins.rend()) ? fbi-1 : *fqmi;
         }
 
         return proposed_field_map_index;
@@ -125,7 +125,13 @@ namespace Gadgetron {
         return proposed_field_map_index;
     }
 
-    hoNDArray<std::vector<uint16_t>> find_local_minima(const hoNDArray<float>& residuals){
+    hoNDArray<std::vector<uint16_t>> find_local_minima(const hoNDArray<float>& residuals,float threshold = 0.06f){
+
+
+        auto threshold_signal = std::move(*sum(&residuals,0));
+        sqrt_inplace(&threshold_signal);
+        threshold_signal /= max(&threshold_signal);
+
 
         const auto Y = residuals.get_size(2);
         const auto X = residuals.get_size(1);
@@ -135,24 +141,16 @@ namespace Gadgetron {
             for (size_t k1 = 0; k1 < X; k1++){
 
                 std::vector<uint16_t> minima;
-                    for (size_t k0 = 1; k0 < steps-1; k0++){
-                    if ((residuals(k0,k1,k2)-residuals(k0-1,k1,k2)) < 0 &&
-                        (residuals(k0+1,k1,k2)-residuals(k0,k1,k2)) > 0 ){
+                if (threshold_signal(k1,k2) > threshold) {
+                    for (size_t k0 = 1; k0 < steps - 1; k0++) {
+                        if ((residuals(k0, k1, k2) - residuals(k0 - 1, k1, k2)) < 0 &&
+                            (residuals(k0 + 1, k1, k2) - residuals(k0, k1, k2)) > 0) {
+                            minima.push_back(k0);
+                        }
 
-                        //&&residuals(k0,k1,k2) < 0.3*(max-min)+min){
-                        minima.push_back(k0);
                     }
-
                 }
-                auto comparator = [&](uint16_t i, uint16_t j){
-                    return residuals(i,k1,k2) < residuals(j,k1,k2);
-                };
-
-//                std::sort(minima.begin(),minima.end(),comparator);
-
                 result(k1,k2) = std::move(minima);
-//                GDEBUG("K1 %i K2 %i \n",k1,k2);
-
             }
         }
         return result;
@@ -168,12 +166,12 @@ namespace Gadgetron {
         for (uint16_t k2 = 0; k2 < Y; k2++) {
             for (uint16_t k1 = 0; k1 < X; k1++) {
 
-                /*
+/*
                 const auto& min_indices = local_min_indices(k1,k2);
                 size_t minimum;
                 if (min_indices.empty()) {
                     if (residuals(0,k1,k2) < residuals(nfields-1,k1,k2)){
-                        minimum = 10;
+                        minimum = 9;
                     } else {
                         minimum = nfields-10;
                     }
@@ -183,8 +181,9 @@ namespace Gadgetron {
                     minimum = *std::min_element(min_indices.begin(), min_indices.end(), [&](auto i, auto j) {
                         return residuals(i, k1, k2) < residuals(j, k1, k2);
                     });
-                }
-*/                  int minimum = 9;
+                }*/
+
+                  int minimum = 9;
                     auto min_val = residuals(minimum,k1,k2);
                     for (int i = 9; i < (nfields-10); i++) {
                         auto min_val2 = residuals(i, k1, k2);
@@ -202,7 +201,7 @@ namespace Gadgetron {
             }
         }
 
-//        second_deriv.fill(10.0f);
+//        second_deriv.fill(1.0f);
         return second_deriv;
 
 
@@ -363,7 +362,7 @@ namespace Gadgetron {
 
         assert(weight >= 0);
 
-        float lambda = std::min(second_deriv[idx],second_deriv[idx2]);
+        float lambda = std::max(std::min(second_deriv[idx],second_deriv[idx2]),0.0f);
         weight *= lambda;
 
         assert(lambda >= 0);
@@ -374,7 +373,7 @@ namespace Gadgetron {
         capacity_map[graph.reverse(edge_idx)] += weight;
 
         {
-            float aq = lambda * std::norm(pf_value1 - f_value2) - std::norm(f_value1 - f_value2);
+            float aq = lambda * (std::norm(pf_value1 - f_value2) - std::norm(f_value1 - f_value2));
 
             if (aq > 0) {
                 capacity_map[graph.edge_from_source(idx)] += aq;
@@ -387,7 +386,7 @@ namespace Gadgetron {
         }
 
         {
-            float aj = lambda * std::norm(f_value1 - pf_value2) - std::norm(f_value1 - f_value2);
+            float aj = lambda * (std::norm(f_value1 - pf_value2) - std::norm(f_value1 - f_value2));
             if (aj > 0) {
                 capacity_map[graph.edge_from_source(idx2)] += aj;
 //            capacity_map[graph.edge_to_source(idx2)] += aj;
@@ -582,7 +581,7 @@ namespace Gadgetron {
 
 
                 for (int k1 = 0; k1 < nte; k1++) {
-                    auto curModulation = exp(-r2star * echoTimes[k1]* 2if * PI * echoTimes[k1] * fm);
+                    auto curModulation = exp(-r2star * echoTimes[k1]+ 2if * PI * echoTimes[k1] * fm);
                     for (int k2 = 0; k2 < nspecies; k2++) {
                         psiMatrix(k1, k2) = phiMatrix(k1,k2)*curModulation;
                     }
@@ -639,9 +638,9 @@ namespace Gadgetron {
 
         // Set some initial parameters so we can get going
         // These will have to be specified in the XML file eventually
-        std::pair<float, float> range_r2star = std::make_pair(0.0, 100.0);
-        uint16_t num_r2star = 5;
-        std::pair<float, float> range_fm = std::make_pair(-200.0, 200.0);
+        std::pair<float, float> range_r2star = std::make_pair(0.0, 0.0);
+        uint16_t num_r2star = 1;
+        std::pair<float, float> range_fm = std::make_pair(-400.0, 400.0);
         uint16_t num_fm = 201;
         uint16_t num_iterations = 40;
         uint16_t subsample = 1;
@@ -709,7 +708,7 @@ namespace Gadgetron {
         hoNDArray<float> residual(num_fm, X, Y);
         hoNDArray<uint16_t> r2starIndex(X, Y, num_fm);
         hoNDArray<uint16_t> fmIndex(X, Y);
-        float curResidual, minResidual;
+
         Cmat P(nte,nte);
         for (int k1 = 0; k1 < X; k1++) {
             for (int k2 = 0; k2 < Y; k2++) {
@@ -729,7 +728,7 @@ namespace Gadgetron {
 
                 for (int k3 = 0; k3 < num_fm; k3++) {
 
-                    minResidual = 1.0 + arma::norm(tempSignal);
+                    float minResidual = std::numeric_limits<float>::max();
 
                     for (int k4 = 0; k4 < num_r2star; k4++) {
                         // Get current projector matrix
@@ -742,8 +741,8 @@ namespace Gadgetron {
                         // Apply projector
 //                        gemm(tempResVector, P, false, tempSignal, false);
 
-
-                        curResidual = arma::norm(P*tempSignal);
+                        Cmat projected = P*tempSignal;
+                        float curResidual = std::accumulate(projected.begin(),projected.end(),0.0f,[](auto v1,auto v2){ return v1+std::norm(v2);});
 
                         if (curResidual < minResidual) {
                             minResidual = curResidual;
@@ -767,7 +766,9 @@ namespace Gadgetron {
         GDEBUG("Second deriv min  %f median %f max %f\n",min(&second_deriv),median(&second_deriv),max(&second_deriv));
 
         write_nd_array(&second_deriv,"deriv.real");
+        write_nd_array(&residual,"residual.real");
 
+        second_deriv += mean(&second_deriv)*lambda_extra;
         second_deriv *= lambda;
 
 
@@ -779,7 +780,7 @@ namespace Gadgetron {
         for (int i = 0; i < num_iterations; i++){
             GDEBUG("Iteration number %i \n", i);
             if ( coinflip(rng_state)  || i < 15){
-                if (coinflip(rng_state)){
+                if (i%2){
                     fmIndex_update = create_field_map_proposal1(fmIndex,local_min_indices,residual,field_map_strengths);
                 } else {
                     fmIndex_update = create_field_map_proposal2(fmIndex,local_min_indices,residual,field_map_strengths);
@@ -792,8 +793,10 @@ namespace Gadgetron {
             GDEBUG("Field map %i %i\n",*std::min_element(fmIndex.begin(),fmIndex.end()),*std::max_element(fmIndex.begin(),fmIndex.end()));
             GDEBUG("Field map %i %i\n",*std::min_element(fmIndex_update.begin(),fmIndex_update.end()),*std::max_element(fmIndex_update.begin(),fmIndex_update.end()));
         }
-
-
+        {
+            hoNDArray<float> field_map_update = create_field_map(fmIndex_update, field_map_strengths);
+            write_nd_array(&fmIndex_update,"field_map_update.int");
+        }
 
         hoNDArray<float> field_map = create_field_map(fmIndex,field_map_strengths);
         write_nd_array<float>(&field_map,"field_map.real");
@@ -820,9 +823,7 @@ namespace Gadgetron {
                 r2star = r2stars[r2starIndex(k1, k2, fmIndex(k1, k2))];
                 Cmat psiMatrix(nte,nspecies);
                 for (int k3 = 0; k3 < nte; k3++) {
-                    auto curModulation = exp(-r2star * echoTimes[k3]) * std::complex<float>(cos(2 * PI * echoTimes[k3] * fm),
-                                                                                            sin(2 * PI * echoTimes[k3] *
-                                                                                                fm));
+                    auto curModulation = exp(-r2star * echoTimes[k3] +2if* PI * echoTimes[k3] * fm);
                     for (int k4 = 0; k4 < nspecies; k4++) {
                         psiMatrix(k3, k4) = phiMatrix(k3, k4) * curModulation;
                     }
