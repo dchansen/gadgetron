@@ -31,7 +31,8 @@
 #include <armadillo>
 #include <random>
 #include <cpu/hoNDArray_fileio.h>
-
+#include <GadgetronTimer.h>
+#include <complex>
 //#define GAMMABAR 42.576 // MHz/T
 
 
@@ -208,10 +209,6 @@ namespace Gadgetron {
     }
 
 
-    void add_regularization_edge(const hoNDArray <float> &field_map,
-                                 const hoNDArray <float> &proposed_field_map, const size_t source_idx,
-                                 const size_t sink_idx, std::vector<std::pair<size_t, size_t>> &edges,
-                                 std::vector<float> &edge_weights, const size_t idx, const size_t idx2);
 
 //    //Welcome to template Hell ala 1998. Enjoy.
 //    typedef boost::adjacency_list<vecS, vecS, undirectedS> Traits;
@@ -602,6 +599,7 @@ namespace Gadgetron {
     hoNDArray<std::complex<float> > fatwater_separation(hoNDArray<std::complex<float> > &data, FatWaterParameters p,
                                                         FatWaterAlgorithm a) {
 
+        GadgetronTimer timer("FatWater separation");
         //Get some data parameters
         //7D, fixed order [X, Y, Z, CHA, N, S, LOC]
         uint16_t X = data.get_size(0);
