@@ -102,11 +102,12 @@ namespace Gadgetron {
 
         const size_t elements = field_map_index.get_number_of_elements();
         hoNDArray<uint16_t> proposed_field_map_index(field_map_index.get_dimensions());
+        const size_t field_maps = field_map_strengths.size();
         for (size_t i = 0; i < elements; i++){
             auto & mins  = minima[i];
             auto fbi = field_map_index[i];
             auto fqmi = std::find_if(mins.rbegin(),mins.rend(), [&](auto fqi){return fqi < (fbi-20);}); //Find smallest
-            proposed_field_map_index[i] = (fqmi == mins.rend()) ? fbi-1 : *fqmi;
+            proposed_field_map_index[i] = (fqmi == mins.rend()) ? std::max(fbi,uint16_t(1))-1 : *fqmi;
         }
 
         return proposed_field_map_index;
@@ -132,6 +133,7 @@ namespace Gadgetron {
         auto threshold_signal = std::move(*sum(&residuals,0));
         sqrt_inplace(&threshold_signal);
         threshold_signal /= max(&threshold_signal);
+        write_nd_array(&threshold_signal,"threshold.real");
 
 
         const auto Y = residuals.get_size(2);
@@ -354,6 +356,9 @@ namespace Gadgetron {
         auto pf_value1 = proposed_field_map[idx];
         auto f_value2 = field_map[idx2];
         auto pf_value2 = proposed_field_map[idx2];
+//        auto sign1 = boost::math::sign(f_value1-pf_value1);
+//        auto sign2 = boost::math::sign((f_value2-pf_value2));
+//        assert (sign1 == sign2);
         float weight = std::norm(pf_value1 - f_value2) + std::norm(f_value1 - pf_value2)
                        - std::norm(f_value1 - f_value2) - std::norm(pf_value1 - pf_value2);
 
@@ -514,7 +519,7 @@ namespace Gadgetron {
         //And update the field_map
         size_t updated_voxels = 0;
         for (size_t i = 0; i < field_map.get_number_of_elements(); i++){
-            if (boost::get(color_map,i) != boost::default_color_type::black_color) {
+            if (boost::get(color_map,i) == boost::default_color_type::black_color) {
 //                GDEBUG("Updated");
                 updated_voxels++;
                 field_map_index[i] = proposed_field_map_index[i];
@@ -763,10 +768,11 @@ namespace Gadgetron {
         hoNDArray<float> second_deriv = approx_second_derivative(residual,local_min_indices,field_map_strengths[1]-field_map_strengths[0]);
         GDEBUG("Second deriv min  %f median %f max %f\n",min(&second_deriv),median(&second_deriv),max(&second_deriv));
 
-        write_nd_array(&second_deriv,"deriv.real");
+
         write_nd_array(&residual,"residual.real");
 
         second_deriv += mean(&second_deriv)*lambda_extra;
+        write_nd_array(&second_deriv,"deriv.real");
         second_deriv *= lambda;
 
 
