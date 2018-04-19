@@ -1,16 +1,13 @@
-//
-// Created by dch on 18/04/18.
-//
+#pragma once
 
-#ifndef GADGETRON_FATWATERMIXEDFITTING_H
-#define GADGETRON_FATWATERMIXEDFITTING_H
+#include <cpu/hoNDArray.h>
+#include "fatwater.h"
 
+namespace Gadgetron {
 
+    void spectral_separation_mixed_fitting(hoNDArray<float>& field_map, hoNDArray<float>& r2star_map,
+            hoNDArray<std::complex<float>>& fractions,
+    const hoNDArray<std::complex<float>>& input_data,
+    const FatWaterAlgorithm& alg_, const std::vector<float>& TEs);
 
-class FatWaterMixedFitting {
-
-};
-
-
-
-#endif //GADGETRON_FATWATERMIXEDFITTING_H
+}
