@@ -33,6 +33,7 @@
 #include <cpu/hoNDArray_fileio.h>
 #include <GadgetronTimer.h>
 #include <complex>
+#include "FatWaterMixedFitting.h"
 //#define GAMMABAR 42.576 // MHz/T
 
 
@@ -575,10 +576,10 @@ namespace Gadgetron {
         arma::Mat<std::complex<float>> psiMatrix(nte, nspecies);
         hoNDArray<std::complex<float> > Ps(nte, nte, num_fm, num_r2star);
         arma::Mat<std::complex<float>> P(nte, nte);
-
+#pragma omp parallel for collapse(2)
         for (int k3 = 0; k3 < num_fm; k3++) {
-            float fm = field_map_strengths[k3];
             for (int k4 = 0; k4 < num_r2star; k4++) {
+                float fm = field_map_strengths[k3];
                 float r2star = r2stars[k4];
 
 
@@ -641,8 +642,8 @@ namespace Gadgetron {
 
         // Set some initial parameters so we can get going
         // These will have to be specified in the XML file eventually
-        std::pair<float, float> range_r2star = std::make_pair(0.0, 0.0);
-        uint16_t num_r2star = 1;
+        std::pair<float, float> range_r2star = std::make_pair(0.0, 200.0);
+        uint16_t num_r2star = 5;
         std::pair<float, float> range_fm = std::make_pair(-400.0, 400.0);
         uint16_t num_fm = 201;
         uint16_t num_iterations = 40;
@@ -781,6 +782,7 @@ namespace Gadgetron {
         fmIndex.fill(num_fm/2);
 
         auto fmIndex_update = fmIndex;
+        /*
         for (int i = 0; i < num_iterations; i++){
             GDEBUG("Iteration number %i \n", i);
             if ( coinflip(rng_state)  || i < 15){
@@ -801,15 +803,17 @@ namespace Gadgetron {
             hoNDArray<float> field_map_update = create_field_map(fmIndex_update, field_map_strengths);
             write_nd_array(&fmIndex_update,"field_map_update.int");
         }
-
+*/
         hoNDArray<float> field_map = create_field_map(fmIndex,field_map_strengths);
-        write_nd_array<float>(&field_map,"field_map.real");
+
 
 
         //Do final calculations once the field map is done
 //        hoMatrix<std::complex<float> > curWaterFat(2, N);
 //        hoMatrix<std::complex<float> > AhA(2, 2);
         // Do fat-water separation with current field map and R2* estimates
+        hoNDArray<float> r2star_map(field_map.get_dimensions());
+        field_map.fill(0);
         for (int k1 = 0; k1 < X; k1++) {
             for (int k2 = 0; k2 < Y; k2++) {
 
@@ -825,6 +829,7 @@ namespace Gadgetron {
 //                fm = field_map_strengths[fmIndex(k1, k2)];
                 fm = field_map(k1,k2);
                 r2star = r2stars[r2starIndex(k1, k2, fmIndex(k1, k2))];
+                r2star_map(k1,k2) = r2star;
                 Cmat psiMatrix(nte,nspecies);
                 for (int k3 = 0; k3 < nte; k3++) {
                     auto curModulation = exp(-r2star * echoTimes[k3] +2if* PI * echoTimes[k3] * fm);
@@ -848,6 +853,16 @@ namespace Gadgetron {
             }
         }
 
+
+//        field_map.fill(0);
+//        r2star_map.fill(0);
+//        out.fill(0.0f);
+
+        fat_water_mixed_fitting(field_map,r2star_map,out,data,a,echoTimes,fieldStrength);
+
+
+        write_nd_array<float>(&field_map,"field_map.real");
+        write_nd_array<float>(&r2star_map,"r2star_map.real");
 
 
         //Clean up as needed
