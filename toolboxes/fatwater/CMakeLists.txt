@@ -2,10 +2,15 @@ if (WIN32)
   add_definitions(-D__BUILD_GADGETRON_FATWATER__)
 endif ()
 
+find_package(Eigen3)
+find_package(Ceres)
+include_directories(${EIGEN_INCLUDE_DIR})
+
+
 include_directories(
   ${Boost_INCLUDE_DIR} 
   ${ARMADILLO_INCLUDE_DIRS} 
-  ${MKL_INCLUDE_DIR} 
+  ${MKL_INCLUDE_DIR}
   ${CMAKE_SOURCE_DIR}/toolboxes/core
   ${CMAKE_SOURCE_DIR}/toolboxes/core/cpu
   ${CMAKE_SOURCE_DIR}/toolboxes/core/cpu/image
@@ -20,7 +25,7 @@ add_library(gadgetron_toolbox_fatwater SHARED
   fatwater_export.h 
   fatwater.h
   fatwater.cpp
-        ImageGraph.cpp ImageGraph.h FatWaterMixedFitting.cpp FatWaterMixedFitting.h)
+        ImageGraph.cpp ImageGraph.h FatWaterMixedFitting.cpp FatWaterMixedFitting.h tiny_solver.h tiny_solver_autodiff_functions.h)
 
 set_target_properties(gadgetron_toolbox_fatwater PROPERTIES VERSION ${GADGETRON_VERSION_STRING} SOVERSION ${GADGETRON_SOVERSION})
 
@@ -28,8 +33,9 @@ target_link_libraries(gadgetron_toolbox_fatwater
   gadgetron_toolbox_log
   gadgetron_toolbox_cpucore 
   gadgetron_toolbox_cpucore_math 
-  ${ARMADILLO_LIBRARIES} 
+  ${ARMADILLO_LIBRARIES}
   ${Boost_LIBRARIES}
+        ${CERES_LIBRARIES}
   )
 
 install(TARGETS gadgetron_toolbox_fatwater DESTINATION lib COMPONENT main)
