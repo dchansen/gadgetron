@@ -190,7 +190,7 @@ endif()
 
 find_package(ACE REQUIRED)
 
-find_package(CUDA_advanced)
+#find_package(CUDA_advanced)
 
 if (CUDA_FOUND)
   add_definitions(-DUSE_CUDA)
@@ -276,6 +276,9 @@ if (LAPACK_FOUND)
   message("LAPACK Found")
   add_definitions(-DUSE_LAPACK)
 endif ()
+
+find_package(Eigen3)
+find_package(Ceres)
 
 option(BUILD_PYTHON_SUPPORT "Build Python gadgets etc" On)
 

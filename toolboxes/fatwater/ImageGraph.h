@@ -299,50 +299,31 @@ std::pair<ImageGraph::edge_iterator, ImageGraph::edge_iterator> edges(const Imag
 
 namespace boost {
 
-    std::vector<float> &get(boost::edge_capacity_t, ImageGraph &g);
+    float* get(boost::edge_capacity_t, ImageGraph &g);
 
-    std::vector<float> &get(boost::edge_residual_capacity_t, ImageGraph &g);
+    float* get(boost::edge_residual_capacity_t, ImageGraph &g);
 
-    std::vector<boost::default_color_type> &get(boost::vertex_color_t, ImageGraph &g);
+    boost::default_color_type* get(boost::vertex_color_t, ImageGraph &g);
 
-    std::vector<float> &get(boost::vertex_distance_t, ImageGraph &g);
+    float* get(boost::vertex_distance_t, ImageGraph &g);
 
     const identity_property_map &get(boost::vertex_index_t, const ImageGraph &g);
 
-    std::vector<size_t> &get(boost::edge_reverse_t, ImageGraph &g);
+    size_t* get(boost::edge_reverse_t, ImageGraph &g);
 
-    std::vector<size_t> &get(boost::vertex_predecessor_t, ImageGraph &g);
-    const std::vector<float> &get(boost::edge_capacity_t, const ImageGraph &g);
+    size_t* get(boost::vertex_predecessor_t, ImageGraph &g);
+    const float* get(boost::edge_capacity_t, const ImageGraph &g);
 
-    const std::vector<float> &get(boost::edge_residual_capacity_t, const ImageGraph &g);
+    const float* get(boost::edge_residual_capacity_t, const ImageGraph &g);
 
-    const std::vector<boost::default_color_type> &get(boost::vertex_color_t, const ImageGraph &g);
+    const boost::default_color_type* get(boost::vertex_color_t, const ImageGraph &g);
 
-    const std::vector<float> &get(boost::vertex_distance_t, const ImageGraph &g);
-
-
-
-    const std::vector<size_t> &get(boost::edge_reverse_t, const ImageGraph &g);
-    const std::vector<size_t> &get(boost::vertex_predecessor_t, const ImageGraph &g);
+    const float* get(boost::vertex_distance_t, const ImageGraph &g);
 
 
 
-
-
-
-
-
-    template<class T>
-    const T &get(const std::vector<T> &vec, size_t i) {
-        return vec[i];
-    }
-/*
-    float get<float>(std::vector<float>&, size_t);
-    const float get<float>(const std::vector<float>&, size_t);
-*/
-
-
-
+    const size_t* get(boost::edge_reverse_t, const ImageGraph &g);
+    const size_t* get(boost::vertex_predecessor_t, const ImageGraph &g);
 
 
 
@@ -351,12 +332,7 @@ namespace boost {
 
 namespace boost {
 
-    template<class T> struct property_traits<std::vector<T>> {
-        typedef T value_type;
-        typedef size_t key_type;
-        typedef T reference;
-        typedef lvalue_property_map_tag category;
-    };
+
 
     typedef ImageGraph* image_graph_ptr;
     typedef const ImageGraph* image_const_graph_ptr;
@@ -402,13 +378,13 @@ namespace boost {
     };
 
 
-    template<> struct property_map<ImageGraph,edge_capacity_t>{ typedef std::vector<float> type; typedef std::vector<float> const_type; };
-    template<> struct property_map<ImageGraph,edge_residual_capacity_t>{ typedef std::vector<float> type; typedef std::vector<float> const_type;};
-    template<> struct property_map<ImageGraph,edge_reverse_t >{ typedef std::vector<size_t> type; typedef std::vector<size_t> const_type;};
+    template<> struct property_map<ImageGraph,edge_capacity_t>{ typedef float* type; typedef const float* const_type; };
+    template<> struct property_map<ImageGraph,edge_residual_capacity_t>{ typedef float* type; typedef const float* const_type;};
+    template<> struct property_map<ImageGraph,edge_reverse_t >{ typedef size_t* type; typedef const size_t* const_type;};
 
-    template<> struct property_map<ImageGraph,vertex_color_t >{ typedef std::vector<default_color_type > type; typedef std::vector<default_color_type > const_type;};
-    template<> struct property_map<ImageGraph,vertex_distance_t >{ typedef std::vector<float > type; typedef std::vector<float > const_type;};
+    template<> struct property_map<ImageGraph,vertex_color_t >{ typedef default_color_type* type; typedef const default_color_type* const_type;};
+    template<> struct property_map<ImageGraph,vertex_distance_t >{ typedef float* type; typedef const float* const_type;};
     template<> struct property_map<ImageGraph,vertex_index_t >{ typedef identity_property_map type; typedef identity_property_map const_type;};
-    template<> struct property_map<ImageGraph,vertex_predecessor_t >{ typedef std::vector<size_t> type; typedef std::vector<size_t> const_type;};
+    template<> struct property_map<ImageGraph,vertex_predecessor_t >{ typedef size_t* type; typedef const size_t* const_type;};
 
 }

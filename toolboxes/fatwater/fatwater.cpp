@@ -346,22 +346,13 @@ namespace Gadgetron {
 
         Graph graph = make_graph(field_map, proposed_field_map, residual_diff_map, second_deriv);
 
-//        auto minimum = *std::min_element(graph.edge_capacity_map.begin(),graph.edge_capacity_map.end());
-//        assert(minimum >= 0);
-
-
-//        auto parities = boost::make_one_bit_color_map(num_vertices(graph), get(boost::vertex_index, graph));
-//
-        // run the Stoer-Wagner algorithm to obtain the min-cut weight. `parities` is also filled in.
-        // This is
-
         Graph::vertex_descriptor source = graph.source_vertex;
         Graph::vertex_descriptor sink = graph.sink_vertex;
 
-//        float flow = boost::boykov_kolmogorov_max_flow(graph,source,sink);
-        float flow = boost::boykov_kolmogorov_max_flow(graph,graph.edge_capacity_map,graph.edge_residual_capicty,
-                                                       graph.reverse_edge_map,graph.vertex_predecessor,graph.color_map.data(),
-                                                       graph.vertex_distance,graph.vertex_index_map,source,sink);
+        float flow = boost::boykov_kolmogorov_max_flow(graph,source,sink);
+//        float flow = boost::boykov_kolmogorov_max_flow(graph,graph.edge_capacity_map,graph.edge_residual_capicty,
+//                                                       graph.reverse_edge_map,graph.vertex_predecessor,graph.color_map.data(),
+//                                                       graph.vertex_distance,graph.vertex_index_map,source,sink);
 
 
         auto color_map = boost::get(vertex_color,graph);

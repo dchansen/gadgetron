@@ -65,56 +65,56 @@ std::pair<ImageGraph::edge_iterator, ImageGraph::edge_iterator> edges(const Imag
 };
 
 
-std::vector<float> &boost::get(boost::edge_capacity_t, ImageGraph &g){
-    return g.edge_capacity_map;
+float* boost::get(boost::edge_capacity_t, ImageGraph &g){
+    return g.edge_capacity_map.data();
 }
 
-std::vector<float> &boost::get(boost::edge_residual_capacity_t, ImageGraph &g){
-    return g.edge_residual_capicty;
+float* boost::get(boost::edge_residual_capacity_t, ImageGraph &g){
+    return g.edge_residual_capicty.data();
 }
 
-std::vector<boost::default_color_type> &boost::get(boost::vertex_color_t, ImageGraph &g){
-    return g.color_map;
+boost::default_color_type* boost::get(boost::vertex_color_t, ImageGraph &g){
+    return g.color_map.data();
 }
 
-std::vector<float> &boost::get(boost::vertex_distance_t, ImageGraph &g){
-    return g.vertex_distance;
+float* boost::get(boost::vertex_distance_t, ImageGraph &g){
+    return g.vertex_distance.data();
 }
 
 const boost::identity_property_map &boost::get(boost::vertex_index_t, const ImageGraph &g){
     return g.vertex_index_map;
 }
 
-std::vector<size_t> &boost::get(boost::edge_reverse_t, ImageGraph &g){
-    return g.reverse_edge_map;
+size_t* boost::get(boost::edge_reverse_t, ImageGraph &g){
+    return g.reverse_edge_map.data();
 }
 
-std::vector<size_t> &boost::get(boost::vertex_predecessor_t, ImageGraph &g){
-    return g.vertex_predecessor;
+size_t* boost::get(boost::vertex_predecessor_t, ImageGraph &g){
+    return g.vertex_predecessor.data();
 
 }
-const std::vector<float> &boost::get(boost::edge_capacity_t, const ImageGraph &g){
-    return g.edge_capacity_map;
+const float* boost::get(boost::edge_capacity_t, const ImageGraph &g){
+    return g.edge_capacity_map.data();
 }
 
-const std::vector<float> &boost::get(boost::edge_residual_capacity_t, const ImageGraph &g){
-    return g.edge_residual_capicty;
+const float* boost::get(boost::edge_residual_capacity_t, const ImageGraph &g){
+    return g.edge_residual_capicty.data();
 }
 
-const std::vector<boost::default_color_type> &boost::get(boost::vertex_color_t, const ImageGraph &g){
-    return g.color_map;
+const boost::default_color_type* boost::get(boost::vertex_color_t, const ImageGraph &g){
+    return g.color_map.data();
 }
 
-const std::vector<float> &boost::get(boost::vertex_distance_t, const ImageGraph &g){
-    return g.vertex_distance;
+const float* boost::get(boost::vertex_distance_t, const ImageGraph &g){
+    return g.vertex_distance.data();
 }
 
 
 
-const std::vector<size_t > &boost::get(boost::edge_reverse_t, const ImageGraph &g){
-    return g.reverse_edge_map;
+const size_t * boost::get(boost::edge_reverse_t, const ImageGraph &g){
+    return g.reverse_edge_map.data();
 }
-const std::vector<size_t> &boost::get(boost::vertex_predecessor_t, const ImageGraph &g){
-    return g.vertex_predecessor;
+const size_t* boost::get(boost::vertex_predecessor_t, const ImageGraph &g){
+    return g.vertex_predecessor.data();
 }
 

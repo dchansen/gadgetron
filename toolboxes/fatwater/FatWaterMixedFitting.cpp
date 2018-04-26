@@ -186,31 +186,16 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
 
-            //FatWaterModel<2> model(alg_,TEs_repeated,signal,fieldstrength);
 
 
-//            column_vector x = {f,r2,water.real(),water.imag(),fat.real(),fat.imag()};
-            //column_vector x = {water.real(),water.imag(),fat.real(),fat.imag()};
-//            column_vector x {water.real(),fat.real()};
-//            dlib::find_min_trust_region(dlib::objective_delta_stop_strategy(1e-5),model,x);
-            //dlib::find_min_using_approximate_derivatives(dlib::lbfgs_search_strategy(5),dlib::objective_delta_stop_strategy(1e-8),model,x,0);
-//            field_map(k1,k2) = x(0);
-//            r2star_map(k1,k2) = x(1);
             f = b[0];
             r2 = b[1];
             water = std::complex<float>(b[2],b[3]);
             fat = std::complex<float>(b[4],b[5]);
-//            water = std::complex<float>(b[0]);
-//            fat = std::complex<float>(b[1]);
-//            water = x(0);
-//            water = x(1);
-
-//            std::cout <<"Values "<< b[0] << " " << b[1] << std::endl;
-
 
         }
     }
-    GDEBUG("Final cost %e\n",total_cost);
+
 
 
 }

@@ -2,15 +2,17 @@ if (WIN32)
   add_definitions(-D__BUILD_GADGETRON_FATWATER__)
 endif ()
 
-find_package(Eigen3)
-find_package(Ceres)
-include_directories(${EIGEN_INCLUDE_DIR})
 
+#Bypass for ancient cmake on Ubuntu
+if (NOT DEFINED ${EIGEN_INCLUDE_DIRS})
+  SET(EIGEN_INCLUDE_DIRS ${CERES_INCLUDE_DIR}/eigen3)
+endif()
 
 include_directories(
   ${Boost_INCLUDE_DIR} 
-  ${ARMADILLO_INCLUDE_DIRS} 
-  ${MKL_INCLUDE_DIR}
+  ${ARMADILLO_INCLUDE_DIRS}
+        ${EIGEN_INCLUDE_DIRS}
+        ${MKL_INCLUDE_DIR}
   ${CMAKE_SOURCE_DIR}/toolboxes/core
   ${CMAKE_SOURCE_DIR}/toolboxes/core/cpu
   ${CMAKE_SOURCE_DIR}/toolboxes/core/cpu/image
@@ -19,6 +21,7 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/toolboxes/solvers/cpu
   ${CMAKE_SOURCE_DIR}/toolboxes/operators
   ${CMAKE_SOURCE_DIR}/toolboxes/operators/cpu
+
   )
 
 add_library(gadgetron_toolbox_fatwater SHARED 
