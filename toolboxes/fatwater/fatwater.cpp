@@ -134,7 +134,6 @@ namespace Gadgetron {
         auto threshold_signal = std::move(*sum(&residuals,0));
         sqrt_inplace(&threshold_signal);
         threshold_signal /= max(&threshold_signal);
-        write_nd_array(&threshold_signal,"threshold.real");
 
 
         const auto Y = residuals.get_size(2);
@@ -170,7 +169,7 @@ namespace Gadgetron {
         for (uint16_t k2 = 0; k2 < Y; k2++) {
             for (uint16_t k1 = 0; k1 < X; k1++) {
 
-/*
+
                 const auto& min_indices = local_min_indices(k1,k2);
                 size_t minimum;
                 if (min_indices.empty()) {
@@ -185,18 +184,7 @@ namespace Gadgetron {
                     minimum = *std::min_element(min_indices.begin(), min_indices.end(), [&](auto i, auto j) {
                         return residuals(i, k1, k2) < residuals(j, k1, k2);
                     });
-                }*/
-
-                  int minimum = 9;
-                    auto min_val = residuals(minimum,k1,k2);
-                    for (int i = 9; i < (nfields-10); i++) {
-                        auto min_val2 = residuals(i, k1, k2);
-                        if (min_val2 < min_val) {
-                            minimum = i;
-                            min_val = min_val2;
-                        }
-                    }
-
+                }
 
                     second_deriv(k1, k2) =
                             (residuals(minimum - 1, k1, k2) + residuals(minimum + 1, k1, k2) -
@@ -278,7 +266,7 @@ namespace Gadgetron {
 
         const auto dims = *field_map.get_dimensions();
 
-        GDEBUG("Minimum field map %f %f\n",min(&proposed_field_map),max(&proposed_field_map));
+
 
         const size_t source_idx = field_map.get_number_of_elements();
         const size_t sink_idx = source_idx+1;
@@ -308,7 +296,7 @@ namespace Gadgetron {
                 if (k1 < (dims[0]-1) && k2 < (dims[1]-1)){
                     size_t idx2 = idx+dims[0]+1;
                     size_t edge = graph.edge_from_offset(idx,vector_td<int,2>(1,1));
-                    update_regularization_edge(graph, field_map, proposed_field_map, second_deriv, idx, idx2, edge,std::sqrt(2.0f));
+                    update_regularization_edge(graph, field_map, proposed_field_map, second_deriv, idx, idx2, edge,1/std::sqrt(2.0f));
                 }
 
 
@@ -375,14 +363,12 @@ namespace Gadgetron {
                                                        graph.reverse_edge_map,graph.vertex_predecessor,graph.color_map.data(),
                                                        graph.vertex_distance,graph.vertex_index_map,source,sink);
 
-        GDEBUG("Floaw %f\n",flow);
+
         auto color_map = boost::get(vertex_color,graph);
 
         // Ok, let's figure out what labels were assigned to the source.
         auto source_label = boost::get(color_map,source);
-        GDEBUG("Source color %i\n",source_label);
-        GDEBUG("Sink color %i\n",boost::get(color_map,sink));
-        GDEBUG("First color %i\n",boost::get(color_map,0));
+
         //And update the field_map
         size_t updated_voxels = 0;
         for (size_t i = 0; i < field_map.get_number_of_elements(); i++){
@@ -392,7 +378,7 @@ namespace Gadgetron {
                 field_map_index[i] = proposed_field_map_index[i];
             }
         }
-        GDEBUG("Voxels updated %i Voxels kept %i \n",updated_voxels,field_map.get_number_of_elements()-updated_voxels);
+
 
     }
 //
@@ -508,8 +494,8 @@ namespace Gadgetron {
 
         // Set some initial parameters so we can get going
         // These will have to be specified in the XML file eventually
-        std::pair<float, float> range_r2star = std::make_pair(0.0, 200.0);
-        uint16_t num_r2star = 5;
+        std::pair<float, float> range_r2star = std::make_pair(0.0, 600.0);
+        uint16_t num_r2star = 10;
         std::pair<float, float> range_fm = std::make_pair(-400.0, 400.0);
         uint16_t num_fm = 201;
         uint16_t num_iterations = 40;
@@ -541,7 +527,7 @@ namespace Gadgetron {
                     phiMatrix(k1, k2) += relAmp * exp(2if * PI * echoTimes[k1] * freq_hz);
 
                 }
-                GDEBUG("Cur value phiMatrix = (%f,%f) \n", phiMatrix(k1, k2).real(), phiMatrix(k1, k2).imag());
+
             }
         }
 
@@ -566,7 +552,7 @@ namespace Gadgetron {
 
 
 
-        GDEBUG("Calculating residiaul map");
+
         auto Ps = CalculateResidualMap(echoTimes, num_r2star, num_fm, nspecies, nte, phiMatrix, field_map_strengths,
                                        r2stars);
 
@@ -587,11 +573,6 @@ namespace Gadgetron {
                 for (int k4 = 0; k4 < N; k4++) {
                     for (int k5 = 0; k5 < S; k5++) {
                         tempSignal(k5, k4) = data(k1, k2, 0, 0, k4, k5, 0);
-                        if (k1 == 107 && k2 == 144) {
-//                            tempSignal(k5, k4) = std::complex<float>(1000.0, 0.0);;
-                            GDEBUG(" (%d,%d) -->  %f + i %f \n", k5, k4, tempSignal(k5, k4).real(),
-                                   tempSignal(k5, k4).imag());
-                        }
 
                     }
                 }
@@ -623,10 +604,6 @@ namespace Gadgetron {
                     }
                     residual(k3, k1, k2) = minResidual;
 
-
-                    if (k1 == 107 && k2 == 144) {
-                        GDEBUG(" %f -->  %f \n", field_map_strengths[k3], minResidual);
-                    }
                 }
             }
         }
@@ -635,13 +612,13 @@ namespace Gadgetron {
 
         hoNDArray<std::vector<uint16_t>> local_min_indices = find_local_minima(residual);
         hoNDArray<float> second_deriv = approx_second_derivative(residual,local_min_indices,field_map_strengths[1]-field_map_strengths[0]);
-        GDEBUG("Second deriv min  %f median %f max %f\n",min(&second_deriv),median(&second_deriv),max(&second_deriv));
 
 
-        write_nd_array(&residual,"residual.real");
+
+
 
         second_deriv += mean(&second_deriv)*lambda_extra;
-        write_nd_array(&second_deriv,"deriv.real");
+
         second_deriv *= lambda;
 
 
@@ -652,7 +629,7 @@ namespace Gadgetron {
         auto fmIndex_update = fmIndex;
 
         for (int i = 0; i < num_iterations; i++){
-            GDEBUG("Iteration number %i \n", i);
+
             if ( coinflip(rng_state)  || i < 15){
                 if (i%2){
                     fmIndex_update = create_field_map_proposal1(fmIndex,local_min_indices,residual,field_map_strengths);
@@ -662,23 +639,18 @@ namespace Gadgetron {
             } else {
                 fmIndex_update = create_field_map_proposal_standard(fmIndex,std::pow(-1,i),field_map_strengths.size());
             }
-            GDEBUG("Proposal created");
+
             update_field_map(fmIndex,fmIndex_update,residual,second_deriv,field_map_strengths);
-            GDEBUG("Field map %i %i\n",*std::min_element(fmIndex.begin(),fmIndex.end()),*std::max_element(fmIndex.begin(),fmIndex.end()));
-            GDEBUG("Field map %i %i\n",*std::min_element(fmIndex_update.begin(),fmIndex_update.end()),*std::max_element(fmIndex_update.begin(),fmIndex_update.end()));
+
+
         }
         {
             hoNDArray<float> field_map_update = create_field_map(fmIndex_update, field_map_strengths);
-            write_nd_array(&fmIndex_update,"field_map_update.int");
         }
 
         hoNDArray<float> field_map = create_field_map(fmIndex,field_map_strengths);
 
 
-
-        //Do final calculations once the field map is done
-//        hoMatrix<std::complex<float> > curWaterFat(2, N);
-//        hoMatrix<std::complex<float> > AhA(2, 2);
         // Do fat-water separation with current field map and R2* estimates
         hoNDArray<float> r2star_map(field_map.get_dimensions());
 

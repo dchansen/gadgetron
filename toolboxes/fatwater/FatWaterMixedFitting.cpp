@@ -128,6 +128,8 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
             TEs_repeated[k4 + (k3-1) * N] = float(TEs[k3]);
         }
     }
+
+
 #pragma omp parallel for collapse(2)
     for (int k2 = 0; k2 < Y; k2++){
         for (int k1 = 0; k1 < X; k1++){
@@ -144,20 +146,12 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
                 }
             }
 
-            if (k2 == 42 && k1 == 42){
-                std::cout << "Signal ";
-                for (auto s : signal){
-                    std::cout << s << ' ';
-                }
-                std::cout << std::endl;
-            }
-
             ceres::Problem problem;
 
 
 
-            auto cost_function1 = new ceres::AutoDiffCostFunction<FatWaterModelCeres<2,1,complex_residual>,2,6>(
-                    new FatWaterModelCeres<2,1,complex_residual>(alg_,TEs_repeated1,signal1,fieldstrength));
+            auto cost_function1 = new ceres::AutoDiffCostFunction<FatWaterModelCeres<2,1,abs_residual>,1,6>(
+                    new FatWaterModelCeres<2,1,abs_residual>(alg_,TEs_repeated1,signal1,fieldstrength));
 
 
 
@@ -166,10 +160,10 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
 
             std::vector<double> b = {f,r2,water.real(),water.imag(),fat.real(),fat.imag()};
 
-            problem.AddResidualBlock(cost_function1, NULL, b.data());
-            problem.AddResidualBlock(cost_function, NULL, b.data());
-            problem.SetParameterLowerBound(b.data(),1,0);
-            problem.SetParameterUpperBound(b.data(),1,300);
+            problem.AddResidualBlock(cost_function1, new ceres::HuberLoss(0.1), b.data());
+            problem.AddResidualBlock(cost_function, new ceres::HuberLoss(0.1), b.data());
+//            problem.SetParameterLowerBound(b.data(),1,0);
+//            problem.SetParameterUpperBound(b.data(),1,300);
 
             ceres::Solver::Options options;
            options.max_num_iterations = 50;
@@ -184,13 +178,14 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
 //            options.parameter_tolerance = 1e-4;
 //        options.preconditioner_type = ceres::IDENTITY;
 //    options.minimizer_type = ceres::LINE_SEARCH;
-//         options.line_search_direction_type = ceres::STEEPEST_DESCENT;
+//         options.line_search_direction_type = ceres::LBFGS;
 //        options.trust_region_strategy_type = ceres::DOGLEG;
 //    options.dogleg_type = ceres::SUBSPACE_DOGLEG;
 
 
             ceres::Solver::Summary summary;
             ceres::Solve(options, &problem, &summary);
+
             //FatWaterModel<2> model(alg_,TEs_repeated,signal,fieldstrength);
 
 
@@ -209,15 +204,13 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
 //            fat = std::complex<float>(b[1]);
 //            water = x(0);
 //            water = x(1);
-            if (k2 == 42 && k1 == 42){
-                std::cout << "Water " << water;
-                std::cout << " Fat " << fat << std::endl;
-            }
+
 //            std::cout <<"Values "<< b[0] << " " << b[1] << std::endl;
 
 
         }
     }
+    GDEBUG("Final cost %e\n",total_cost);
 
 
 }
