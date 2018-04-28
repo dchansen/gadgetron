@@ -147,7 +147,15 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
             }
 
             ceres::Problem problem;
+            /*
+            auto cost_function1 = new ceres::NumericDiffCostFunction<FatWaterModelCeres<2,1,abs_residual>,ceres::RIDDERS,1,6>(
+                    new FatWaterModelCeres<2,1,abs_residual>(alg_,TEs_repeated1,signal1,fieldstrength));
 
+
+
+            auto cost_function = new ceres::NumericDiffCostFunction<FatWaterModelCeres<2,3,complex_residual>,ceres::RIDDERS,6,6>(
+                    new FatWaterModelCeres<2,3,complex_residual>(alg_,TEs_repeated,signal,fieldstrength));
+                    */
 
 
             auto cost_function1 = new ceres::AutoDiffCostFunction<FatWaterModelCeres<2,1,abs_residual>,1,6>(
@@ -160,10 +168,10 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
 
             std::vector<double> b = {f,r2,water.real(),water.imag(),fat.real(),fat.imag()};
 
-            problem.AddResidualBlock(cost_function1, new ceres::HuberLoss(0.1), b.data());
-            problem.AddResidualBlock(cost_function, new ceres::HuberLoss(0.1), b.data());
-//            problem.SetParameterLowerBound(b.data(),1,0);
-//            problem.SetParameterUpperBound(b.data(),1,300);
+            problem.AddResidualBlock(cost_function1, nullptr, b.data());
+            problem.AddResidualBlock(cost_function, nullptr, b.data());
+            problem.SetParameterLowerBound(b.data(),1,0);
+            problem.SetParameterUpperBound(b.data(),1,200);
 
             ceres::Solver::Options options;
            options.max_num_iterations = 50;
@@ -173,12 +181,12 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
 //            options.use_inner_iterations = true;
 
 //        options.use_explicit_schur_complement = true;
-//            options.function_tolerance = 1e-4;
-//            options.gradient_tolerance = 1e-4;
-//            options.parameter_tolerance = 1e-4;
+            options.function_tolerance = 1e-4;
+            options.gradient_tolerance = 1e-4;
+            options.parameter_tolerance = 1e-4;
 //        options.preconditioner_type = ceres::IDENTITY;
 //    options.minimizer_type = ceres::LINE_SEARCH;
-//         options.line_search_direction_type = ceres::LBFGS;
+//         options.line_search_direction_type = ceres::BFGS;
 //        options.trust_region_strategy_type = ceres::DOGLEG;
 //    options.dogleg_type = ceres::SUBSPACE_DOGLEG;
 

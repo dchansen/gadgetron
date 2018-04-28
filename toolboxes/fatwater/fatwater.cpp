@@ -350,10 +350,6 @@ namespace Gadgetron {
         Graph::vertex_descriptor sink = graph.sink_vertex;
 
         float flow = boost::boykov_kolmogorov_max_flow(graph,source,sink);
-//        float flow = boost::boykov_kolmogorov_max_flow(graph,graph.edge_capacity_map,graph.edge_residual_capicty,
-//                                                       graph.reverse_edge_map,graph.vertex_predecessor,graph.color_map.data(),
-//                                                       graph.vertex_distance,graph.vertex_index_map,source,sink);
-
 
         auto color_map = boost::get(vertex_color,graph);
 
@@ -364,7 +360,6 @@ namespace Gadgetron {
         size_t updated_voxels = 0;
         for (size_t i = 0; i < field_map.get_number_of_elements(); i++){
             if (boost::get(color_map,i) == boost::default_color_type::black_color) {
-//                GDEBUG("Updated");
                 updated_voxels++;
                 field_map_index[i] = proposed_field_map_index[i];
             }
@@ -373,44 +368,6 @@ namespace Gadgetron {
 
     }
 //
-//    void add_regularization_edge(const hoNDArray<float> &field_map,
-//                                 const hoNDArray<float> &proposed_field_map, const size_t source_idx,
-//                                 const size_t sink_idx, std::vector<std::pair<size_t, size_t>> &edges,
-//                                 std::vector<float> &edge_weights, const size_t idx, const size_t idx2) {
-//        edges.emplace_back(idx, idx2);
-//        auto f_value1 = field_map[idx];
-//        auto pf_value1 = proposed_field_map[idx];
-//        auto f_value2 = field_map[idx2];
-//        auto pf_value2 = proposed_field_map[idx2];
-//        float weight = std::norm(pf_value1 - f_value2) + std::norm(f_value1 - pf_value2)
-//                       - std::norm(f_value1 - f_value2) - std::norm(pf_value1 - pf_value2);
-//        edge_weights.push_back(weight);
-//
-//        float aq = std::norm(pf_value1 - f_value2) - std::norm(f_value1 - f_value2);
-//
-//        if (aq > 0){
-//            edges.emplace_back(source_idx,idx);
-//            edge_weights.push_back(aq);
-//        } else {
-//            edges.emplace_back(idx,sink_idx);
-//            edge_weights.push_back(-aq);
-//        }
-//
-//        float aj = std::norm(f_value1 - pf_value2) - std::norm(f_value1 - f_value2);
-//        if (aj > 0){
-//            edges.emplace_back(source_idx,idx2);
-//            edge_weights.push_back(aj);
-//
-//        } else {
-//            edges.emplace_back(idx2,sink_idx);
-//            edge_weights.push_back(-aj);
-//        }
-//
-//
-//
-//
-//    }
-
 
     hoNDArray <std::complex<float>>
     CalculateResidualMap(const std::vector<float> &echoTimes, uint16_t num_r2star, uint16_t num_fm, uint16_t nspecies,
@@ -485,8 +442,8 @@ namespace Gadgetron {
 
         // Set some initial parameters so we can get going
         // These will have to be specified in the XML file eventually
-        std::pair<float, float> range_r2star = std::make_pair(0.0, 600.0);
-        uint16_t num_r2star = 10;
+        std::pair<float, float> range_r2star = std::make_pair(0.0, 200.0);
+        uint16_t num_r2star = 5;
         std::pair<float, float> range_fm = std::make_pair(-400.0, 400.0);
         uint16_t num_fm = 201;
         uint16_t num_iterations = 40;
@@ -554,7 +511,7 @@ namespace Gadgetron {
 
         hoNDArray<float> residual(num_fm, X, Y);
         hoNDArray<uint16_t> r2starIndex(X, Y, num_fm);
-        hoNDArray<uint16_t> fmIndex(X, Y);
+
 
 #pragma omp parallel for collapse(2)
         for (int k1 = 0; k1 < X; k1++) {
@@ -614,7 +571,7 @@ namespace Gadgetron {
 
 
         std::uniform_int_distribution<int> coinflip(0,1);
-
+        hoNDArray<uint16_t> fmIndex(X, Y);
         fmIndex.fill(num_fm/2);
 
         auto fmIndex_update = fmIndex;
