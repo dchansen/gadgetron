@@ -60,8 +60,8 @@ public:
     bool operator()(const T* const b, T* e) const {
         const T fm = b[0];
 //        T fm = T(0);
-//        const T r2star = b[1];
-        const double r2star = r2star;
+        const T r2star = b[1];
+//        const double r2star = r2star;
 //        float fm = 0;
 //        T r2star = T(0);
 
@@ -112,7 +112,7 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
 
 
 
-    omp_set_nested(true);
+
     const size_t X = input_data.get_size(0);
     const size_t Y = input_data.get_size(1);
     const size_t N = input_data.get_size(4);
@@ -122,8 +122,7 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
     std::vector<float> TEs_repeated1(N,TEs[0]);
 
 
-    std::vector<complext<double>> signal1(N);
-    std::vector<complext<double>> signal((S-1)*N);
+
 
 
     for (int k3 = 1; k3 < S; k3++) {
@@ -133,9 +132,11 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
     }
 
 
-//#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2)
     for (int k2 = 0; k2 < Y; k2++){
         for (int k1 = 0; k1 < X; k1++){
+            std::vector<complext<double>> signal1(N);
+            std::vector<complext<double>> signal((S-1)*N);
             auto& f = field_map(k1,k2);
             auto& r2 = r2star_map(k1,k2);
             std::complex<float>& water = fractions(k1,k2,0,0,0,0,0);
