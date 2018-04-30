@@ -24,6 +24,7 @@ using namespace Gadgetron;
 static constexpr float GAMMABAR = 42.576;
 using namespace std::complex_literals;
 constexpr double PI = boost::math::constants::pi<double>();
+
 #include <ceres/ceres.h>
 
 
@@ -49,7 +50,7 @@ template<unsigned int NSPECIES,unsigned int NRESIDUALS, class RESIDUAL> class Fa
 public:
 
 
-    FatWaterModelCeres(FatWaterAlgorithm alg, const std::vector<float>& TEs, const std::vector<complext<double>>& data, float fieldstrength) : alg_(alg), TEs_(TEs),data_(data), fieldstrength_(fieldstrength), residual_function(){
+    FatWaterModelCeres(FatWaterAlgorithm alg, const std::vector<float>& TEs, const std::vector<complext<double>>& data, float fieldstrength,float r2star) : alg_(alg), TEs_(TEs),data_(data), fieldstrength_(fieldstrength), residual_function(), r2star_(r2star){
         assert(alg_.species_.size() == NSPECIES);
         assert(TEs.size() == data_.size());
         assert(data_.size() == NRESIDUALS);
@@ -59,7 +60,8 @@ public:
     bool operator()(const T* const b, T* e) const {
         const T fm = b[0];
 //        T fm = T(0);
-        const T r2star = b[1];
+//        const T r2star = b[1];
+        const double r2star = r2star;
 //        float fm = 0;
 //        T r2star = T(0);
 
@@ -76,7 +78,7 @@ public:
                                                        return val + T(peak.first) * exp(complext<T>(T(0.0),T(2.0)) * T(PI * peak.second*fieldstrength_*GAMMABAR * TE));
                                                    });
             }
-            predicted *= exp((-r2star + complext<T>(T(0),T(2*PI)) * fm) * T(TE));
+            predicted *= exp((T(-r2star) + complext<T>(T(0),T(2*PI)) * fm) * T(TE));
             residual_function(e, predicted, data_[j],j);
 
         }
@@ -94,6 +96,7 @@ private:
     const std::vector<float> TEs_;
     const std::vector<complext<double>> data_;
     const float fieldstrength_;
+    const float r2star_;
     RESIDUAL residual_function;
 
 
@@ -109,7 +112,7 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
 
 
 
-
+    omp_set_nested(true);
     const size_t X = input_data.get_size(0);
     const size_t Y = input_data.get_size(1);
     const size_t N = input_data.get_size(4);
@@ -130,7 +133,7 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
     }
 
 
-#pragma omp parallel for collapse(2)
+//#pragma omp parallel for collapse(2)
     for (int k2 = 0; k2 < Y; k2++){
         for (int k1 = 0; k1 < X; k1++){
             auto& f = field_map(k1,k2);
@@ -159,19 +162,19 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
 
 
             auto cost_function1 = new ceres::AutoDiffCostFunction<FatWaterModelCeres<2,1,abs_residual>,1,6>(
-                    new FatWaterModelCeres<2,1,abs_residual>(alg_,TEs_repeated1,signal1,fieldstrength));
+                    new FatWaterModelCeres<2,1,abs_residual>(alg_,TEs_repeated1,signal1,fieldstrength,r2));
 
 
 
             auto cost_function = new ceres::AutoDiffCostFunction<FatWaterModelCeres<2,3,complex_residual>,6,6>(
-                    new FatWaterModelCeres<2,3,complex_residual>(alg_,TEs_repeated,signal,fieldstrength));
+                    new FatWaterModelCeres<2,3,complex_residual>(alg_,TEs_repeated,signal,fieldstrength,r2));
 
             std::vector<double> b = {f,r2,water.real(),water.imag(),fat.real(),fat.imag()};
 
             problem.AddResidualBlock(cost_function1, nullptr, b.data());
             problem.AddResidualBlock(cost_function, nullptr, b.data());
-            problem.SetParameterLowerBound(b.data(),1,0);
-            problem.SetParameterUpperBound(b.data(),1,200);
+//            problem.SetParameterLowerBound(b.data(),1,0);
+//            problem.SetParameterUpperBound(b.data(),1,200);
 
             ceres::Solver::Options options;
            options.max_num_iterations = 50;
@@ -181,9 +184,9 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
 //            options.use_inner_iterations = true;
 
 //        options.use_explicit_schur_complement = true;
-            options.function_tolerance = 1e-4;
-            options.gradient_tolerance = 1e-4;
-            options.parameter_tolerance = 1e-4;
+//            options.function_tolerance = 1e-4;
+//            options.gradient_tolerance = 1e-4;
+//            options.parameter_tolerance = 1e-4;
 //        options.preconditioner_type = ceres::IDENTITY;
 //    options.minimizer_type = ceres::LINE_SEARCH;
 //         options.line_search_direction_type = ceres::BFGS;
