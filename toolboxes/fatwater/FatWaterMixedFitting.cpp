@@ -73,9 +73,9 @@ public:
                 complext<T> tmp(b[2*i+2],b[2*i+3]);
 //                complext<T> tmp(b[2*i+2]);
 //                T tmp = b[i+2];
-                predicted += tmp * std::accumulate(species.ampFreq_.begin(), species.ampFreq_.end(), complext<T>(T(0.0)),
+                predicted += tmp * std::accumulate(species.ampFreq_.begin(), species.ampFreq_.end(), complext<double>(0.0),
                                                    [&](auto val, auto peak) {
-                                                       return val + T(peak.first) * exp(complext<T>(T(0.0),T(2.0)) * T(PI * peak.second*fieldstrength_*GAMMABAR * TE));
+                                                       return val + complext<float>(peak.first) * exp(complext<double>(0.0,2.0) * (PI * peak.second*fieldstrength_*GAMMABAR * TE));
                                                    });
             }
             predicted *= exp((T(-r2star) + complext<T>(T(0),T(2*PI)) * fm) * T(TE));
@@ -162,8 +162,8 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
                     */
 
 
-            auto cost_function1 = new ceres::AutoDiffCostFunction<FatWaterModelCeres<2,1,abs_residual>,1,6>(
-                    new FatWaterModelCeres<2,1,abs_residual>(alg_,TEs_repeated1,signal1,fieldstrength,r2));
+            auto cost_function1 = new ceres::AutoDiffCostFunction<FatWaterModelCeres<2,1,complex_residual>,1,6>(
+                    new FatWaterModelCeres<2,1,complex_residual>(alg_,TEs_repeated1,signal1,fieldstrength,r2));
 
 
 
@@ -190,7 +190,7 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_map, hoNDArray<f
 //            options.parameter_tolerance = 1e-4;
 //        options.preconditioner_type = ceres::IDENTITY;
 //    options.minimizer_type = ceres::LINE_SEARCH;
-//         options.line_search_direction_type = ceres::BFGS;
+//         options.line_search_direction_type = ceres::LBFGS;
 //        options.trust_region_strategy_type = ceres::DOGLEG;
 //    options.dogleg_type = ceres::SUBSPACE_DOGLEG;
 

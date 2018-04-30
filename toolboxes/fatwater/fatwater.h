@@ -33,7 +33,7 @@ namespace Gadgetron
         {}
         
         std::string name_;
-        std::vector< std::pair<float,float> > ampFreq_;
+        std::vector< std::pair<std::complex<float>,float > > ampFreq_;
     };
     
     struct FatWaterAlgorithm

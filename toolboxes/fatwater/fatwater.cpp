@@ -442,22 +442,22 @@ namespace Gadgetron {
 
         // Set some initial parameters so we can get going
         // These will have to be specified in the XML file eventually
-        std::pair<float, float> range_r2star = std::make_pair(0.0, 200.0);
+        std::pair<float, float> range_r2star = std::make_pair(5.0, 500.0);
         uint16_t num_r2star = 5;
-        std::pair<float, float> range_fm = std::make_pair(-400.0, 400.0);
+        std::pair<float, float> range_fm = std::make_pair(-500.0, 500.0);
         uint16_t num_fm = 201;
-        uint16_t num_iterations = 40;
+        uint16_t num_iterations = 30;
         uint16_t subsample = 1;
         float lmap_power = 2.0;
         float lambda = 0.02;
-        float lambda_extra = 0.02;
+        float lambda_extra = 0.01;
 
         //Check that we have reasonable data for fat-water separation
 
 
         //Calculate residual
         //
-        float relAmp, freq_hz;
+
         uint16_t npeaks;
         uint16_t nspecies = a.species_.size();
         uint16_t nte = echoTimes.size();
@@ -470,8 +470,8 @@ namespace Gadgetron {
             for (int k2 = 0; k2 < nspecies; k2++) {
                 npeaks = a.species_[k2].ampFreq_.size();
                 for (int k3 = 0; k3 < npeaks; k3++) {
-                    relAmp = a.species_[k2].ampFreq_[k3].first;
-                    freq_hz = fieldStrength * GAMMABAR * a.species_[k2].ampFreq_[k3].second;
+                    auto relAmp = a.species_[k2].ampFreq_[k3].first;
+                    auto freq_hz = fieldStrength * GAMMABAR * a.species_[k2].ampFreq_[k3].second;
                     phiMatrix(k1, k2) += relAmp * exp(2if * PI * echoTimes[k1] * freq_hz);
 
                 }
@@ -642,7 +642,7 @@ namespace Gadgetron {
         }
 
 
-        fat_water_mixed_fitting(field_map,r2star_map,out,data,a,echoTimes,fieldStrength);
+//        fat_water_mixed_fitting(field_map,r2star_map,out,data,a,echoTimes,fieldStrength);
 
         write_nd_array<float>(&field_map,"field_map.real");
         write_nd_array<float>(&r2star_map,"r2star_map.real");

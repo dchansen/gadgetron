@@ -5,6 +5,7 @@
 
 namespace Gadgetron{
 
+    using namespace std::complex_literals;
     FatWaterGadget::FatWaterGadget()
     {
         
@@ -82,18 +83,18 @@ namespace Gadgetron{
         Gadgetron::FatWaterAlgorithm a;
         
         Gadgetron::ChemicalSpecies w("water");
-        w.ampFreq_.push_back(std::make_pair(1.0, 0.0));
+        w.ampFreq_.emplace_back(1.0, 0.0);
 
         Gadgetron::ChemicalSpecies f("fat");
-        f.ampFreq_.push_back(std::make_pair(0.087,-3.8));
-        f.ampFreq_.push_back(std::make_pair(0.693,-3.4));
-        f.ampFreq_.push_back(std::make_pair(0.128,-2.6));
-        f.ampFreq_.push_back(std::make_pair(0.004,-1.94));
-        f.ampFreq_.push_back(std::make_pair(0.039,-0.39));
-        f.ampFreq_.push_back(std::make_pair(0.048,0.60));
+        f.ampFreq_.emplace_back(0.0796f-0.0510if,-3.8415);
+        f.ampFreq_.emplace_back(0.693,-3.4860);
+        f.ampFreq_.emplace_back(0.0957f+0.014if,-2.7583);
+        f.ampFreq_.emplace_back(-0.0047f-0.0221if,-1.8762);
+        f.ampFreq_.emplace_back(0.0160f-0.015if,-0.5047);
+        f.ampFreq_.emplace_back(0.0849f-0.0244if,0.5260);
         
-        a.species_.push_back(w);
-        a.species_.push_back(f);
+        a.species_.emplace_back(w);
+        a.species_.emplace_back(f);
 
         //try {
             //This should return the images

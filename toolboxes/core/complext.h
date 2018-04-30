@@ -325,11 +325,68 @@ namespace Gadgetron {
         return std::atan2(comp._imag, comp._real);
     }
 
+    template<class T, class S>
+    __inline__ __host__ __device__ auto operator*(const complext<T>& c1, const S& c2) -> complext<decltype(c1._real*c2)>{
+        return c2*c1;
+    };
+
+    template<class T, class S>
+    __inline__ __host__ __device__ auto operator*(const T& c1, const complext<S>& c2) -> complext<decltype(c1*c2._real)>{
+        auto real = c1*c2._real;
+        auto imag = c1*c2._imag;
+
+        return complext<decltype(real)>(real,imag);
+    };
+
+
+    template<class T, class S>
+    __inline__ __host__ __device__ auto operator+(const T& c1, const complext<S>& c2) -> complext<decltype(c1+c2._real)>{
+        auto real = c1+c2._real;
+        return complext<decltype(real)>(real,c2._imag);
+    };
+
+
+    template<class T, class S>
+    __inline__ __host__ __device__ auto operator+(const complext<T>& c1, const S& c2) -> complext<decltype(c1._real+c2)>{
+        return c2+c1;
+    };
+
+
+    template<class T, class S>
+    __inline__ __host__ __device__ auto operator/(const complext<T>& c1, const S& c2) -> complext<decltype(c1._real*c2)>{
+        auto real = c1._real / c2;
+        auto imag = c1._imag / c2;
+        return complext<decltype(real)>(real,imag);
+    };
+
+    template<class T, class S>
+    __inline__ __host__ __device__ auto operator/(const T& c1, const complext<S>& c2)-> complext<decltype(c1/c2._real)>{
+
+        auto real = c1*c2._real;
+        auto imag = -c2._imag*c1;
+        auto denum = c2._real*c2._real+c2._imag*c2._imag;
+
+        return complext<decltype(real)>(real/denum,imag/denum);
+    };
+
+    template<class T, class S>
+    __inline__ __host__ __device__ auto operator-(const T& c1, const complext<S>& c2) -> complext<decltype(c1-c2._real)>{
+        auto real = c1-c2._real;
+        return complext<decltype(real)>(real,c2._imag);
+    };
+
+    template<class T, class S>
+    __inline__ __host__ __device__ auto operator-(const complext<T>& c1, const S& c2) -> complext<decltype(c1._real-c2)>{
+        auto real = c1._real-c2;
+        return complext<decltype(real)>(real,c1._imag);
+    };
+
+
 
     template<class T, class S>
     __inline__ __host__ __device__ auto operator*(const complext<T>& c1, const complext<S>& c2) -> complext<decltype(c1._real*c2._real)>{
-        auto real = c1._real*c2._real;
-        auto imag = c1._imag*c2._imag;
+        auto real = c1._real*c2._real-c1._imag*c2._imag;
+        auto imag = c1._imag*c2._real+c1._real*c2._imag;
 
         return complext<decltype(real)>(real,imag);
     };
@@ -358,68 +415,7 @@ namespace Gadgetron {
         return complext<decltype(real)>(real/denum,imag/denum);
     };
 
-    template<class T>
-    __inline__ __host__ __device__  complext<T> operator*(const T &r, const complext<T> &z) {
-        return complext<T>(z._real * r, z._imag * r);
-    }
 
-    template<class T>
-    __inline__ __host__ __device__  complext<T> operator*(const complext<T> &z, const T &r) {
-        return complext<T>(z._real * r, z._imag * r);
-    }
-
-    template<class T>
-    __inline__ __host__ __device__  complext<T> operator+(const complext<T> &z1, const complext<T> &z2) {
-        return complext<T>(z1._real + z2._real, z1._imag + z2._imag);
-    }
-
-    template<class T>
-    __inline__ __host__ __device__  complext<T> operator+(const complext<T> &z1, const T &r) {
-        return complext<T>(z1._real + r, z1._imag);
-    }
-
-    template<class T>
-    __inline__ __host__ __device__  complext<T> operator+(const T &r, const complext<T> &z1) {
-        return complext<T>(z1._real + r, z1._imag);
-    }
-
-    template<class T>
-    __inline__ __host__ __device__  complext<T> operator-(const complext<T> &z1, const complext<T> &z2) {
-        return complext<T>(z1._real - z2._real, z1._imag - z2._imag);
-    }
-
-    template<class T>
-    __inline__ __host__ __device__  complext<T> operator-(const T &r, const complext<T> &z2) {
-        return complext<T>(r - z2._real, -z2._imag);
-    }
-
-    template<class T>
-    __inline__ __host__ __device__  complext<T> operator-(const complext<T> &z2, const T &r) {
-        return complext<T>(z2._real - r, z2._imag);
-    }
-
-    template<class T>
-    __inline__ __host__ __device__  complext<T> operator*(const complext<T> &z1, const complext<T> &z2) {
-        return complext<T>(z1._real * z2._real - z1._imag * z2._imag, z1._real * z2._imag + z1._imag * z2._real);
-    }
-
-    template<class T>
-    __inline__ __host__ __device__  complext<T> operator/(const complext<T> &z1, const complext<T> &z2) {
-        T cd = z2._real * z2._real + z2._imag * z2._imag;
-        return complext<T>((z1._real * z2._real + z1._imag * z2._imag) / cd,
-                           (z1._imag * z2._real - z1._real * z2._imag) / cd);
-    }
-
-    template<class REAL, class T>
-    __inline__ __host__ __device__  complext<T> operator/(const REAL &real, const complext<T> &comp) {
-        T cd = comp._real * comp._real + comp._imag * comp._imag;
-        return complext<T>(comp._real * real / cd, -real * comp._imag / cd);
-    }
-
-    template<class REAL, class T>
-    __inline__ __host__ __device__  complext<T> operator/(const complext<T> &comp, const REAL &real) {
-        return complext<T>(comp._real / real, comp._imag / real);
-    }
 
     __inline__ __host__ __device__ float norm(const float &r) {
         return r * r;
