@@ -642,7 +642,7 @@ namespace Gadgetron {
         }
 
 
-//        fat_water_mixed_fitting(field_map,r2star_map,out,data,a,echoTimes,fieldStrength);
+        fat_water_mixed_fitting(field_map,r2star_map,out,data,a,echoTimes,fieldStrength);
 
         write_nd_array<float>(&field_map,"field_map.real");
         write_nd_array<float>(&r2star_map,"r2star_map.real");
