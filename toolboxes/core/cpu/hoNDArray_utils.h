@@ -743,7 +743,7 @@ namespace Gadgetron {
 
   // Downsample
   template<class REAL, unsigned int D> 
-  boost::shared_ptr< hoNDArray<REAL> > downsample( hoNDArray<REAL> *_in )
+  boost::shared_ptr< hoNDArray<REAL> > downsample(const  hoNDArray<REAL> *_in )
   {
     // A few sanity checks 
 
@@ -817,7 +817,7 @@ namespace Gadgetron {
 
   // Linear interpolation upsampling
   template<class REAL, unsigned int D> boost::shared_ptr< hoNDArray<REAL> >
-  upsample( hoNDArray<REAL> *_in )
+  upsample( const  hoNDArray<REAL> *_in )
   {
     // A few sanity checks 
 

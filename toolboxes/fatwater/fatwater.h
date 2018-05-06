@@ -47,7 +47,7 @@ namespace Gadgetron
        data array is assumed to be a 7D array [X, Y, Z, CHA, N, S, LOC]
 
      */
-    EXPORTFATWATER hoNDArray< std::complex<float> > fatwater_separation(hoNDArray< std::complex<float> >& data, FatWaterParameters p, FatWaterAlgorithm a);
+    EXPORTFATWATER hoNDArray< std::complex<float> > fatwater_separation(const hoNDArray< std::complex<float> >& data, FatWaterParameters p, FatWaterAlgorithm a);
 
 }
 

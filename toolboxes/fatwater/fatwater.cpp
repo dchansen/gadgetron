@@ -34,6 +34,7 @@
 #include <GadgetronTimer.h>
 #include <complex>
 #include "FatWaterMixedFitting.h"
+
 //#define GAMMABAR 42.576 // MHz/T
 
 
@@ -402,10 +403,13 @@ namespace Gadgetron {
         }
         return Ps;
     }
-    hoNDArray<std::complex<float> > fatwater_separation(hoNDArray<std::complex<float> > &data, FatWaterParameters p,
+    hoNDArray<std::complex<float> > fatwater_separation(const hoNDArray<std::complex<float> > &data_orig, FatWaterParameters p,
                                                         FatWaterAlgorithm a) {
 
         GadgetronTimer timer("FatWater separation");
+
+        auto data = *downsample<std::complex<float>,2>(&data_orig);
+
         //Get some data parameters
         //7D, fixed order [X, Y, Z, CHA, N, S, LOC]
         uint16_t X = data.get_size(0);
@@ -647,6 +651,7 @@ namespace Gadgetron {
         write_nd_array<float>(&field_map,"field_map.real");
         write_nd_array<float>(&r2star_map,"r2star_map.real");
 
+        out = *upsample<std::complex<float>,2>(&out);
 
         //Clean up as needed
 
