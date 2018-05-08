@@ -187,14 +187,17 @@ namespace Gadgetron {
                     });
                 }
 
-                    second_deriv(k1, k2) =
+                    auto sd  =
                             (residuals(minimum - 1, k1, k2) + residuals(minimum + 1, k1, k2) -
                              2 * residuals(minimum, k1, k2)) / (step_size * step_size);
+                    second_deriv(k1, k2) = std::max(sd,0.0f);
+
 
             }
         }
 
 //        second_deriv.fill(1.0f);
+
         return second_deriv;
 
 
@@ -409,7 +412,7 @@ namespace Gadgetron {
         GadgetronTimer timer("FatWater separation");
 
         auto data = *downsample<std::complex<float>,2>(&data_orig);
-
+//        auto data = data_orig;
         //Get some data parameters
         //7D, fixed order [X, Y, Z, CHA, N, S, LOC]
         uint16_t X = data.get_size(0);
@@ -450,7 +453,7 @@ namespace Gadgetron {
         uint16_t num_r2star = 5;
         std::pair<float, float> range_fm = std::make_pair(-500.0, 500.0);
         uint16_t num_fm = 201;
-        uint16_t num_iterations = 30;
+        uint16_t num_iterations = 60;
         uint16_t subsample = 1;
         float lmap_power = 2.0;
         float lambda = 0.02;
@@ -565,7 +568,7 @@ namespace Gadgetron {
         hoNDArray<std::vector<uint16_t>> local_min_indices = find_local_minima(residual);
         hoNDArray<float> second_deriv = approx_second_derivative(residual,local_min_indices,field_map_strengths[1]-field_map_strengths[0]);
 
-
+        second_deriv.fill(mean(&second_deriv));
 
 
 
@@ -646,13 +649,21 @@ namespace Gadgetron {
         }
 
 
-        fat_water_mixed_fitting(field_map,r2star_map,out,data,a,echoTimes,fieldStrength);
+        sqrt_inplace(&second_deriv);
+
+//        fat_water_mixed_fitting(field_map,r2star_map,out,data,second_deriv, a,echoTimes,fieldStrength);
+
+
+
+        out = *upsample<std::complex<float>,2>(&out);
+        field_map = *upsample<float,2>(&field_map);
+        r2star_map = *upsample<float,2>(&r2star_map);
+
+//        fat_water_mixed_fitting(field_map, r2star_map, out, data_orig,second_deriv,
+//                                a, echoTimes, fieldStrength);
 
         write_nd_array<float>(&field_map,"field_map.real");
         write_nd_array<float>(&r2star_map,"r2star_map.real");
-
-        out = *upsample<std::complex<float>,2>(&out);
-
         //Clean up as needed
 
 

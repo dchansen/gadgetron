@@ -230,27 +230,32 @@ private:
 //
 
 struct DiffLoss {
-    DiffLoss(double scale): scale_(scale){}
+    DiffLoss(double scale1, double scale2): scale1_(scale1), scale2_(scale2){}
     template<class T> bool operator()(const T* const base, const T* const dx, const T* const dy, T* residual) const{
 
-        residual[0] = scale_*(base[0]-dx[0]);
-        residual[1] = scale_*(base[0]-dy[0]);
+        residual[0] = scale1_*(base[0]-dx[0]);
+        residual[1] = scale2_*(base[0]-dy[0]);
         return true;
     }
 
 private:
-    const double scale_;
+    const double scale1_;
+    const double scale2_;
 };
 
 
-static void add_regularization(ceres::Problem & problem, hoNDArray<double>& field_map, double weight, ceres::LossFunction* loss=NULL){
+static void add_regularization(ceres::Problem & problem, hoNDArray<double>& field_map, const hoNDArray<float>& lambda_map, ceres::LossFunction* loss=NULL){
 
-    auto cost_function = new ceres::AutoDiffCostFunction<DiffLoss,2,1,1,1>(new DiffLoss(weight));
+
     const size_t X = field_map.get_size(0);
     const size_t Y = field_map.get_size(1);
 
     for (int k2 = 0; k2 < Y-1; k2++){
         for (int k1 = 0; k1 < X-1; k1++){
+
+            auto weight1 = std::min(lambda_map(k1,k2),lambda_map(k1+1,k2));
+            auto weight2 = std::min(lambda_map(k1,k2),lambda_map(k1,k2+1));
+            auto cost_function = new ceres::AutoDiffCostFunction<DiffLoss,2,1,1,1>(new DiffLoss(weight1,weight2));
             std::vector<double*> ptrs = {&field_map(k1,k2),&field_map(k1+1,k2),&field_map(k1,k2+1)};
 
             problem.AddResidualBlock(cost_function,loss,ptrs);
@@ -261,10 +266,11 @@ static void add_regularization(ceres::Problem & problem, hoNDArray<double>& fiel
 }
 
 
-void Gadgetron::fat_water_mixed_fitting(hoNDArray<float > &field_mapF, hoNDArray<float> &r2star_mapF,
+void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_mapF, hoNDArray<float> &r2star_mapF,
                                         hoNDArray<std::complex<float>> &fractionsF,
                                         const hoNDArray<std::complex<float>> &input_data,
-                                        const FatWaterAlgorithm &alg_, const std::vector<float> &TEs, float fieldstrength){
+                                        const hoNDArray<float> &lambda_map, const FatWaterAlgorithm &alg_,
+                                        const std::vector<float> &TEs, float fieldstrength) {
 
     hoNDArray<double> field_map;
     field_map.copyFrom(field_mapF);
@@ -298,13 +304,16 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float > &field_mapF, hoNDArray
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
     options.num_threads = 6;
 //    options.minimizer_type = ceres::LINE_SEARCH;
-//    options.line_search_direction_type = ceres::NONLINEAR_CONJUGATE_GRADIENT;
+//    options.line_search_direction_type = ceres::STEEPEST_DESCENT;
+//    options.nonlinear_conjugate_gradient_type = ceres::POLAK_RIBIERE;
+    options.max_lbfgs_rank = 10;
 //    options.use_nonmonotonic_steps = true;
 //    options.use_inner_iterations = true;
 //    options.inner_iteration_tolerance = 1e-2;
 //    options.inner_iteration_tolerance = 1e-5;
 
-     options.trust_region_strategy_type = ceres::DOGLEG;
+//     options.trust_region_strategy_type = ceres::DOGLEG;
+//     options.dogleg_type = ceres::SUBSPACE_DOGLEG;
     for (int k2 = 0; k2 < Y; k2++){
         for (int k1 = 0; k1 < X; k1++){
 
@@ -341,9 +350,9 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float > &field_mapF, hoNDArray
 //            std::vector<double> b = {f,r2,water.real(),water.imag(),fat.real(),fat.imag()};
             std::vector<double*> b = {&f,&r2, (double*)&water,(double*)&fat};
             problem.AddResidualBlock(cost_function, nullptr, b);
-//            problem.SetParameterLowerBound(&r2,1,0);
-//            problem.SetParameterUpperBound(&r2,1,200);
-
+//            problem.SetParameterLowerBound(&r2,0,0);
+//            problem.SetParameterUpperBound(&r2,0,500);
+//
 
 //            options.initial_trust_region_radius = 0.1;
 //            options.dense_linear_algebra_library_type = ceres::LAPACK;
@@ -368,8 +377,9 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float > &field_mapF, hoNDArray
 
         }
     }
-    add_regularization(problem,field_map,5);
-    add_regularization(problem,r2star_map,2, new ceres::SoftLOneLoss(0.1));
+    add_regularization(problem,field_map,lambda_map);
+//    add_regularization(problem,field_map,20.0);
+//    add_regularization(problem,r2star_map,2, new ceres::SoftLOneLoss(0.1));
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
