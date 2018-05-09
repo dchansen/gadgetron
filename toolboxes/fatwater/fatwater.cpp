@@ -33,6 +33,7 @@
 #include <cpu/hoNDArray_fileio.h>
 #include <GadgetronTimer.h>
 #include <complex>
+#include <cpu/math/hoNDImage_util.h>
 #include "FatWaterMixedFitting.h"
 
 //#define GAMMABAR 42.576 // MHz/T
@@ -83,6 +84,48 @@ namespace Gadgetron {
     static constexpr float PI = boost::math::constants::pi<float>();
     static std::mt19937 rng_state(4242);
 
+
+
+    void smooth_edges(hoNDArray<float>& residual, float relative_sigma=1){
+
+        const int fm = residual.get_size(0);
+        const int X = residual.get_size(1);
+        const int Y = residual.get_size(2);
+
+        const float sigma_X2 = std::pow(relative_sigma*X/2,2);
+        const float sigma_Y2 = std::pow(relative_sigma*Y/2,2);
+
+#pragma omp parallel for collapse(2)
+        for (int k2 = 0; k2 < Y; k2++){
+            for (int k1 = 0; k1 < X; k1++){
+                const float dist = std::pow<float>(k1 - X/2,2)/sigma_X2+std::pow<float>(k2 - Y/2,2)/sigma_Y2;
+                float weight = std::exp(-0.5*dist);
+                for (int k0 = 0; k0 < fm; k0++)
+                    residual(k0,k1,k2) *= weight;
+            }
+        }
+
+    }
+
+    void enhance_regularization_edges(hoNDArray<float>& residual, float relative_sigma=1){
+
+
+        const int X = residual.get_size(0);
+        const int Y = residual.get_size(1);
+
+        const float sigma_X2 = std::pow(relative_sigma*X/2,2);
+        const float sigma_Y2 = std::pow(relative_sigma*Y/2,2);
+
+#pragma omp parallel for collapse(2)
+        for (int k2 = 0; k2 < Y; k2++){
+            for (int k1 = 0; k1 < X; k1++){
+                const float dist = std::pow<float>(k1 - X/2,2)/sigma_X2+std::pow<float>(k2 - Y/2,2)/sigma_Y2;
+                float weight = std::exp(-0.5*dist);
+                residual(k1,k2) /= weight;
+            }
+        }
+
+    }
     hoNDArray<uint16_t> create_field_map_proposal1(const hoNDArray<uint16_t>& field_map_index, const hoNDArray<std::vector<uint16_t>>& minima, const hoNDArray<float>& residuals, const std::vector<float> &field_map_strengths){
 
         const size_t elements = field_map_index.get_number_of_elements();
@@ -120,7 +163,7 @@ namespace Gadgetron {
     hoNDArray<uint16_t> create_field_map_proposal_standard(const hoNDArray<uint16_t>& field_map_index,int sign, uint16_t max_field_value){
 
 
-        std::uniform_int_distribution<int> rng(1,3);
+        std::uniform_int_distribution<int> rng(1,20);
 
         int step_size = sign*rng(rng_state);
         hoNDArray<uint16_t> proposed_field_map_index(field_map_index.get_dimensions());
@@ -411,8 +454,8 @@ namespace Gadgetron {
 
         GadgetronTimer timer("FatWater separation");
 
-        auto data = *downsample<std::complex<float>,2>(&data_orig);
-//        auto data = data_orig;
+//        auto data = *downsample<std::complex<float>,2>(&data_orig);
+        auto data = data_orig;
         //Get some data parameters
         //7D, fixed order [X, Y, Z, CHA, N, S, LOC]
         uint16_t X = data.get_size(0);
@@ -451,9 +494,9 @@ namespace Gadgetron {
         // These will have to be specified in the XML file eventually
         std::pair<float, float> range_r2star = std::make_pair(5.0, 500.0);
         uint16_t num_r2star = 5;
-        std::pair<float, float> range_fm = std::make_pair(-500.0, 500.0);
+        std::pair<float, float> range_fm = std::make_pair(-200.0, 200.0);
         uint16_t num_fm = 201;
-        uint16_t num_iterations = 60;
+        uint16_t num_iterations = 100;
         uint16_t subsample = 1;
         float lmap_power = 2.0;
         float lambda = 0.02;
@@ -563,12 +606,14 @@ namespace Gadgetron {
             }
         }
 
+//        float sigma[] = {0,2,2};
+//        filterGaussian(residual,sigma);
 
 
         hoNDArray<std::vector<uint16_t>> local_min_indices = find_local_minima(residual);
         hoNDArray<float> second_deriv = approx_second_derivative(residual,local_min_indices,field_map_strengths[1]-field_map_strengths[0]);
 
-        second_deriv.fill(mean(&second_deriv));
+//        second_deriv.fill(mean(&second_deriv));
 
 
 
@@ -576,6 +621,9 @@ namespace Gadgetron {
 
         second_deriv *= lambda;
 
+
+//        enhance_regularization_edges(second_deriv,0.5);
+//        smooth_edges(residual,0.5);
 
         std::uniform_int_distribution<int> coinflip(0,1);
         hoNDArray<uint16_t> fmIndex(X, Y);
@@ -586,7 +634,7 @@ namespace Gadgetron {
         for (int i = 0; i < num_iterations; i++){
 
             if ( coinflip(rng_state)  || i < 15){
-                if (i%2){
+                if (coinflip(rng_state)){
                     fmIndex_update = create_field_map_proposal1(fmIndex,local_min_indices,residual,field_map_strengths);
                 } else {
                     fmIndex_update = create_field_map_proposal2(fmIndex,local_min_indices,residual,field_map_strengths);
@@ -654,16 +702,18 @@ namespace Gadgetron {
 //        fat_water_mixed_fitting(field_map,r2star_map,out,data,second_deriv, a,echoTimes,fieldStrength);
 
 
-
+/*
         out = *upsample<std::complex<float>,2>(&out);
         field_map = *upsample<float,2>(&field_map);
         r2star_map = *upsample<float,2>(&r2star_map);
-
+*/
 //        fat_water_mixed_fitting(field_map, r2star_map, out, data_orig,second_deriv,
 //                                a, echoTimes, fieldStrength);
 
         write_nd_array<float>(&field_map,"field_map.real");
         write_nd_array<float>(&r2star_map,"r2star_map.real");
+        write_nd_array<float>(&residual,"residual_map.real");
+        write_nd_array<float>(&second_deriv,"deriv.real");
         //Clean up as needed
 
 
