@@ -68,6 +68,7 @@ int GadgetServerAcceptor::handle_input (ACE_HANDLE)
   controller->reactor (this->reactor ());
   if (controller->open () == -1)
     controller->handle_close (ACE_INVALID_HANDLE, 0);
+  delete controller;
   return 0;
 }
 
