@@ -489,7 +489,7 @@ namespace Gadgetron {
 
         for (int i = 0; i < num_iterations; i++) {
             std::cout << "Iteration " << i << std::endl;
-
+            
             if (coinflip(rng_state) || i < 15) {
                 if ( coinflip(rng_state)) {
                     std::cout << "Down" << std::endl;
@@ -531,8 +531,8 @@ namespace Gadgetron {
 
         GadgetronTimer timer("FatWater separation");
 
-//        auto data = *downsample<std::complex<float>,2>(&data_orig);
-        auto data = data_orig;
+        auto data = *downsample<std::complex<float>,2>(&data_orig);
+//        auto data = data_orig;
         //Get some data parameters
         //7D, fixed order [X, Y, Z, CHA, N, S, LOC]
         uint16_t X = data.get_size(0);
@@ -582,7 +582,7 @@ namespace Gadgetron {
         std::pair<float, float> range_fm = std::make_pair(-500.0, 500.0);
         uint16_t num_fm = 200;
 //        uint16_t num_iterations = num_fm*2;
-        uint16_t num_iterations = 1;
+        uint16_t num_iterations = 40;
         uint16_t subsample = 1;
         float lmap_power = 2.0;
         float lambda = 0.02;
@@ -715,9 +715,9 @@ namespace Gadgetron {
 //        smooth_edges(residual,0.1,0.01);
 
 
-//        hoNDArray<uint16_t> fmIndex = solve_MRF(num_iterations, field_map_strengths, residual, local_min_indices, second_deriv,std::abs(average_fat_freq),dF,dTE);
+        hoNDArray<uint16_t> fmIndex = solve_MRF(num_iterations, field_map_strengths, residual, local_min_indices, second_deriv,std::abs(average_fat_freq),dF,dTE);
 
-        hoNDArray<uint16_t> fmIndex = solve_MRF_alphabeta(num_iterations, field_map_strengths, residual, second_deriv);
+//        hoNDArray<uint16_t> fmIndex = solve_MRF_alphabeta(num_iterations, field_map_strengths, residual, second_deriv);
 
 
         hoNDArray<float> field_map = create_field_map(fmIndex,field_map_strengths);
@@ -771,11 +771,11 @@ namespace Gadgetron {
 //        fat_water_mixed_fitting(field_map,r2star_map,out,data,second_deriv, a,echoTimes,fieldStrength);
 
 
-/*
+
         out = *upsample<std::complex<float>,2>(&out);
         field_map = *upsample<float,2>(&field_map);
         r2star_map = *upsample<float,2>(&r2star_map);
-*/
+
 //        fat_water_mixed_fitting(field_map, r2star_map, out, data_orig,second_deriv,
 //                                a, echoTimes, fieldStrength);
 
