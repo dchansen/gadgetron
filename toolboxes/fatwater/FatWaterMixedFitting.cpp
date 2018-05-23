@@ -243,9 +243,8 @@ private:
     const double scale2_;
 };
 
-
+/*
 static void add_regularization(ceres::Problem & problem, hoNDArray<double>& field_map, const hoNDArray<float>& lambda_map, ceres::LossFunction* loss=NULL){
-
 
     const size_t X = field_map.get_size(0);
     const size_t Y = field_map.get_size(1);
@@ -261,8 +260,23 @@ static void add_regularization(ceres::Problem & problem, hoNDArray<double>& fiel
             problem.AddResidualBlock(cost_function,loss,ptrs);
         }
     }
+}*/
+
+static void add_regularization(ceres::Problem & problem, hoNDArray<double>& field_map, float lambda, ceres::LossFunction* loss=NULL){
+
+    const size_t X = field_map.get_size(0);
+    const size_t Y = field_map.get_size(1);
+
+    for (int k2 = 0; k2 < Y-1; k2++){
+        for (int k1 = 0; k1 < X-1; k1++){
 
 
+            auto cost_function = new ceres::AutoDiffCostFunction<DiffLoss,2,1,1,1>(new DiffLoss(lambda,lambda));
+            std::vector<double*> ptrs = {&field_map(k1,k2),&field_map(k1+1,k2),&field_map(k1,k2+1)};
+
+            problem.AddResidualBlock(cost_function,loss,ptrs);
+        }
+    }
 }
 
 
@@ -304,9 +318,9 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_mapF, hoNDArray<
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
     options.num_threads = 6;
 //    options.minimizer_type = ceres::LINE_SEARCH;
-//    options.line_search_direction_type = ceres::STEEPEST_DESCENT;
+//    options.line_search_direction_type = ceres::LBFGS;
 //    options.nonlinear_conjugate_gradient_type = ceres::POLAK_RIBIERE;
-    options.max_lbfgs_rank = 10;
+//    options.max_lbfgs_rank = 10;
 //    options.use_nonmonotonic_steps = true;
 //    options.use_inner_iterations = true;
 //    options.inner_iteration_tolerance = 1e-2;
@@ -377,9 +391,10 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_mapF, hoNDArray<
 
         }
     }
-    add_regularization(problem,field_map,lambda_map);
-//    add_regularization(problem,field_map,20.0);
-//    add_regularization(problem,r2star_map,2, new ceres::SoftLOneLoss(0.1));
+//    add_regularization(problem,field_map,lambda_map);
+    add_regularization(problem,field_map,2);
+//    hoNDArray<
+    add_regularization(problem,r2star_map,1.0, new ceres::SoftLOneLoss(2));
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);

@@ -234,7 +234,8 @@ namespace Gadgetron {
         for (uint16_t k2 = 0; k2 < Y; k2++) {
             for (uint16_t k1 = 0; k1 < X; k1++) {
 
-
+                auto minimum = std::min_element(&residuals(1,k1,k2),&residuals(nfields-1,k1,k2))-&residuals(0,k1,k2);
+                /*
                 const auto& min_indices = local_min_indices(k1,k2);
                 size_t minimum;
                 if (min_indices.empty()) {
@@ -250,12 +251,13 @@ namespace Gadgetron {
                         return residuals(i, k1, k2) < residuals(j, k1, k2);
                     });
                 }
+                 */
 
                     auto sd  =
                             (residuals(minimum - 1, k1, k2) + residuals(minimum + 1, k1, k2) -
                              2 * residuals(minimum, k1, k2)) / (step_size * step_size);
-                    second_deriv(k1, k2) = std::max(sd,0.0f);
-
+//                    second_deriv(k1, k2) = std::max(sd,0.0f);
+                second_deriv(k1,k2) = sd;
 
             }
         }
@@ -438,12 +440,28 @@ namespace Gadgetron {
     }
 //
 
-    hoNDArray <std::complex<float>>
-    CalculateResidualMap(const std::vector<float> &echoTimes, uint16_t num_r2star, uint16_t num_fm, uint16_t nspecies,
-                         uint16_t nte, const arma::Mat<std::complex<float>> &phiMatrix,
+    arma::Mat<std::complex<float>>
+calculate_psi_matrix(const std::vector<float> &echoTimes,
+                     const arma::Mat<std::complex<float>> &phiMatrix, float fm, float r2star) {
+        arma::Mat<std::complex<float>> psiMatrix(phiMatrix.n_rows, phiMatrix.n_cols);
+        for (int k1 = 0; k1 < phiMatrix.n_rows; k1++) {
+                    auto curModulation = exp(-r2star * echoTimes[k1]+ 2if * PI * echoTimes[k1] * fm);
+                    for (int k2 = 0; k2 < phiMatrix.n_cols; k2++) {
+                        psiMatrix(k1, k2) = phiMatrix(k1,k2)*curModulation;
+                    }
+                }
+
+
+        return psiMatrix;
+    }
+
+    hoNDArray <arma::Mat<std::complex<float>>>
+    CalculateResidualMap(const std::vector<float> &echoTimes, uint16_t num_r2star, uint16_t num_fm,
+                         const arma::Mat<std::complex<float>> &phiMatrix,
                          const std::vector<float> &field_map_strengths, const std::vector<float> &r2stars) {
 
-        hoNDArray<std::complex<float> > Ps(nte, nte, num_fm, num_r2star);
+        hoNDArray<arma::Mat<std::complex<float>> > Ps(num_fm, num_r2star);
+        size_t nte = phiMatrix.n_rows;
 
 #pragma omp parallel for collapse(2)
         for (int k3 = 0; k3 < num_fm; k3++) {
@@ -451,22 +469,11 @@ namespace Gadgetron {
                 float fm = field_map_strengths[k3];
                 float r2star = r2stars[k4];
 
-                arma::Mat<std::complex<float>> psiMatrix(nte, nspecies);
-                for (int k1 = 0; k1 < nte; k1++) {
-                    auto curModulation = exp(-r2star * echoTimes[k1]+ 2if * PI * echoTimes[k1] * fm);
-                    for (int k2 = 0; k2 < nspecies; k2++) {
-                        psiMatrix(k1, k2) = phiMatrix(k1,k2)*curModulation;
-                    }
-                }
-                arma::Mat<std::complex<float>> P = arma::eye<arma::Mat<std::complex<float>>>(nte, nte) - psiMatrix *
+                arma::Mat<std::complex<float>> psiMatrix = calculate_psi_matrix(echoTimes, phiMatrix, fm,
+                                                                                r2star);
+                Ps(k3,k4) = arma::eye<arma::Mat<std::complex<float>>>(nte,nte) - psiMatrix *
                                                                                                          arma::solve(psiMatrix.t() * psiMatrix, psiMatrix.t());
 
-// Keep all projector matrices together
-                for (int k1 = 0; k1 < nte; k1++) {
-                    for (int k2 = 0; k2 < nte; k2++) {
-                        Ps(k1, k2, k3, k4) = P(k1, k2);
-                    }
-                }
             }
         }
         return Ps;
@@ -489,7 +496,7 @@ namespace Gadgetron {
 
         for (int i = 0; i < num_iterations; i++) {
             std::cout << "Iteration " << i << std::endl;
-            
+
             if (coinflip(rng_state) || i < 15) {
                 if ( coinflip(rng_state)) {
                     std::cout << "Down" << std::endl;
@@ -526,13 +533,180 @@ namespace Gadgetron {
     }
 
 
+    hoNDArray<float> calculate_r2star_map(const hoNDArray<std::complex<float> >& data, const hoNDArray<uint16_t>& fm_index, const std::vector<float>& r2star_values, const std::vector<float>& field_map_strenghts, const arma::Mat<std::complex<float>> &phiMatrix, std::vector<float>& echoTimes){
+
+        uint16_t X = data.get_size(0);
+        uint16_t Y = data.get_size(1);
+        uint16_t Z = data.get_size(2);
+        uint16_t CHA = data.get_size(3);
+        uint16_t N = data.get_size(4);
+        uint16_t S = data.get_size(5);
+        uint16_t LOC = data.get_size(6);
+        std::unordered_map<uint16_t,std::vector<arma::Mat<std::complex<float>>>> Ps;
+        auto nte = phiMatrix.n_rows;
+        for (auto fm : fm_index){
+            if (!Ps.count(fm)){
+                std::vector<arma::Mat<std::complex<float>>> projection_matrices(r2star_values.size());
+                std::transform(r2star_values.begin(),r2star_values.end(),projection_matrices.begin(),[&](float r2star){
+                    auto psiMatrix =  calculate_psi_matrix(echoTimes,phiMatrix,field_map_strenghts[fm],r2star);
+                    arma::Mat<std::complex<float>> result = arma::eye<arma::Mat<std::complex<float>>>(nte,nte) - psiMatrix *
+                                                                                arma::solve(psiMatrix.t() * psiMatrix, psiMatrix.t());
+                    return result;
+                });
+                Ps.emplace(fm,std::move(projection_matrices));
+            }
+        }
+
+        hoNDArray<float> r2star_map(fm_index.get_dimensions());
+
+#pragma omp parallel for collapse(2)
+        for (int k1 = 0; k1 < X; k1++) {
+            for (int k2 = 0; k2 < Y; k2++) {
+                // Get current signal
+                arma::Mat<std::complex<float>> tempSignal(S, N);
+                for (int k4 = 0; k4 < N; k4++) {
+                    for (int k5 = 0; k5 < S; k5++) {
+                        tempSignal(k5, k4) = data(k1, k2, 0, 0, k4, k5, 0);
+
+                    }
+                }
+
+
+                float minResidual = std::numeric_limits<float>::max();
+                auto & P = Ps[fm_index(k1,k2)];
+
+                for (int kr2 = 0; kr2 < r2star_values.size(); kr2++) {
+                    // Apply projector
+                    arma::Mat<std::complex<float>> projected = P[kr2] * tempSignal;
+                    float curResidual = std::accumulate(projected.begin(), projected.end(), 0.0f, [](auto v1, auto v2){ return v1 +
+                                                                                                                               std::norm(v2);});
+
+                    if (curResidual < minResidual) {
+                        minResidual = curResidual;
+                        r2star_map(k1,k2) = r2star_values[kr2];
+                    }
+                }
+
+
+
+            }
+        }
+
+        return  r2star_map;
+    }
+
+
+
+
+    void CalculateResidualAndR2Star(uint16_t num_r2star, uint16_t num_fm, uint16_t nte,
+                                    const hoNDArray<arma::Mat<std::complex<float>>> &Ps,
+                                    const hoNDArray<std::complex<float>> &data, hoNDArray<float> &residual,
+                                    hoNDArray<uint16_t> &r2starIndex) {
+
+        uint16_t X = data.get_size(0);
+        uint16_t Y = data.get_size(1);
+        uint16_t Z = data.get_size(2);
+        uint16_t CHA = data.get_size(3);
+        uint16_t N = data.get_size(4);
+        uint16_t S = data.get_size(5);
+        uint16_t LOC = data.get_size(6);
+
+        r2starIndex = hoNDArray<uint16_t>(data.get_size(0),data.get_size(1),num_fm);
+        residual = hoNDArray<float>(num_fm,data.get_size(0),data.get_size(1));
+
+#pragma omp parallel for collapse(2)
+        for (int k1 = 0; k1 < X; k1++) {
+            for (int k2 = 0; k2 < Y; k2++) {
+                // Get current signal
+                arma::Mat<std::complex<float>> tempSignal(S, N);
+                for (int k4 = 0; k4 < N; k4++) {
+                    for (int k5 = 0; k5 < S; k5++) {
+                        tempSignal(k5, k4) = data(k1, k2, 0, 0, k4, k5, 0);
+
+                    }
+                }
+
+                for (int k3 = 0; k3 < num_fm; k3++) {
+
+                    float minResidual = std::numeric_limits<float>::max();
+
+                    for (int k4 = 0; k4 < num_r2star; k4++) {
+                        // Apply projector
+                        arma::Mat<std::complex<float>> projected = Ps(k3,k4) * tempSignal;
+                        float curResidual = std::accumulate(projected.begin(), projected.end(), 0.0f, [](auto v1, auto v2){ return v1 +
+                                                                                                                                   std::norm(v2);});
+
+                        if (curResidual < minResidual) {
+                            minResidual = curResidual;
+                            r2starIndex(k1, k2, k3) = k4;
+                        }
+                    }
+                    residual(k3, k1, k2) = minResidual;
+
+                }
+            }
+        }
+    }
+
+    hoNDArray <std::complex<float>>
+separate_species(const hoNDArray <std::complex<float>> &data, const std::vector<float> &echoTimes,
+                 const arma::Mat<std::complex<float>> &phiMatrix, hoNDArray<float> &r2star_map,
+                 hoNDArray<float> &field_map) {
+        uint16_t X = data.get_size(0);
+        uint16_t Y = data.get_size(1);
+        uint16_t Z = data.get_size(2);
+        uint16_t CHA = data.get_size(3);
+        uint16_t N = data.get_size(4);
+        uint16_t S = data.get_size(5);
+        uint16_t LOC = data.get_size(6);
+        hoNDArray<std::complex<float> > out(X, Y, Z, CHA, N, 2, LOC); // S dimension gets replaced by water/fat stuff
+
+        for (int k1 = 0; k1 < X; k1++) {
+            for (int k2 = 0; k2 < Y; k2++) {
+
+                arma::Mat<std::complex<float>> tempSignal(S, N);
+
+                // Get current signal
+                for (int k4 = 0; k4 < N; k4++) {
+                    for (int k5 = 0; k5 < S; k5++) {
+                        tempSignal(k5, k4) = data(k1, k2, 0, 0, k4, k5, 0);
+                    }
+                }
+                // Get current Psi matrix
+//                fm = field_map_strengths[fmIndex(k1, k2)];
+                auto fm = field_map(k1,k2);
+                auto r2star = r2star_map(k1,k2);
+
+                arma::Mat<std::complex<float>> psiMatrix = calculate_psi_matrix(echoTimes, phiMatrix, fm, r2star);
+
+                // Solve for water and fat
+
+
+
+                arma::Mat<std::complex<float>> curWaterFat = arma::solve(psiMatrix, tempSignal);
+//                hesv(AhA, curWaterFat);
+                for (int k4 = 0; k4 < N; k4++) {
+                    for (int k5 = 0; k5 < 2; k5++) { // 2 elements for water and fat currently
+                        out(k1, k2, 0, 0, k4, k5, 0) = curWaterFat(k5, k4);
+                    }
+                }
+
+            }
+        }
+        return out;
+    }
+
     hoNDArray<std::complex<float> >  fatwater_separation(const hoNDArray<std::complex<float> > &data_orig, FatWaterParameters p,
                                                          FatWaterAlgorithm a) {
 
         GadgetronTimer timer("FatWater separation");
 
-        auto data = *downsample<std::complex<float>,2>(&data_orig);
+//        auto data = *downsample<std::complex<float>,2>(&data_orig);
 //        auto data = data_orig;
+        auto data = data_orig;
+        float sigma[] = {1,1};
+        filterGaussian(data,sigma);
+
         //Get some data parameters
         //7D, fixed order [X, Y, Z, CHA, N, S, LOC]
         uint16_t X = data.get_size(0);
@@ -545,7 +719,7 @@ namespace Gadgetron {
 
         GDEBUG("Size of my array: %d, %d, %d .\n", X, Y, Z);
 
-        hoNDArray<std::complex<float> > out(X, Y, Z, CHA, N, 2, LOC); // S dimension gets replaced by water/fat stuff
+
 
         float fieldStrength = p.fieldStrengthT_;
         std::vector<float> echoTimes = p.echoTimes_;
@@ -579,6 +753,7 @@ namespace Gadgetron {
         // These will have to be specified in the XML file eventually
         std::pair<float, float> range_r2star = std::make_pair(5.0, 500.0);
         uint16_t num_r2star = 5;
+        uint16_t num_r2star_fine = 200;
         std::pair<float, float> range_fm = std::make_pair(-500.0, 500.0);
         uint16_t num_fm = 200;
 //        uint16_t num_iterations = num_fm*2;
@@ -617,80 +792,43 @@ namespace Gadgetron {
 
 
 
-        float fm;
+
         std::vector<float> field_map_strengths(num_fm);
         field_map_strengths[0] = range_fm.first;
         for (int k1 = 1; k1 < num_fm; k1++) {
             field_map_strengths[k1] = range_fm.first + k1 * (range_fm.second - range_fm.first) / (num_fm - 1);
         }
 
-        float r2star;
+
+
+
         std::vector<float> r2stars(num_r2star);
         r2stars[0] = range_r2star.first;
         for (int k2 = 1; k2 < num_r2star; k2++) {
             r2stars[k2] = range_r2star.first + k2 * (range_r2star.second - range_r2star.first) / (num_r2star - 1);
         }
 
+        std::vector<float> r2stars_fine(num_r2star_fine);
+        r2stars_fine[0] = range_r2star.first;
+        for (int k2 = 1; k2 < num_r2star_fine; k2++) {
+            r2stars_fine[k2] = range_r2star.first + k2 * (range_r2star.second - range_r2star.first) / (num_r2star_fine - 1);
+        }
 
 
 
 
 
 
-        auto Ps = CalculateResidualMap(echoTimes, num_r2star, num_fm, nspecies, nte, phiMatrix, field_map_strengths,
+        auto Ps = CalculateResidualMap(echoTimes, num_r2star, num_fm, phiMatrix, field_map_strengths,
                                        r2stars);
 
 
         // Need to check that S = nte
         // N should be the number of contrasts (eg: for PSIR)
-        hoMatrix<std::complex<float> > tempResVector(S, N);
+        hoNDArray<float> residual;
+        hoNDArray<uint16_t> r2starIndex;
+        CalculateResidualAndR2Star(num_r2star, num_fm, nte, Ps, data, residual, r2starIndex);
 
-        hoNDArray<float> residual(num_fm, X, Y);
-        hoNDArray<uint16_t> r2starIndex(X, Y, num_fm);
-
-
-#pragma omp parallel for collapse(2)
-        for (int k1 = 0; k1 < X; k1++) {
-            for (int k2 = 0; k2 < Y; k2++) {
-                // Get current signal
-                Cmat tempSignal(S, N);
-                for (int k4 = 0; k4 < N; k4++) {
-                    for (int k5 = 0; k5 < S; k5++) {
-                        tempSignal(k5, k4) = data(k1, k2, 0, 0, k4, k5, 0);
-
-                    }
-                }
-
-
-                for (int k3 = 0; k3 < num_fm; k3++) {
-
-                    float minResidual = std::numeric_limits<float>::max();
-
-                    for (int k4 = 0; k4 < num_r2star; k4++) {
-                        Cmat P(nte,nte);
-                        // Get current projector matrix
-                        for (int k5 = 0; k5 < nte; k5++) {
-                            for (int k6 = 0; k6 < nte; k6++) {
-                                P(k5, k6) = Ps(k5, k6, k3, k4);
-                            }
-                        }
-
-                        // Apply projector
-
-
-                        Cmat projected = P*tempSignal;
-                        float curResidual = std::accumulate(projected.begin(),projected.end(),0.0f,[](auto v1,auto v2){ return v1+std::norm(v2);});
-
-                        if (curResidual < minResidual) {
-                            minResidual = curResidual;
-                            r2starIndex(k1, k2, k3) = k4;
-                        }
-                    }
-                    residual(k3, k1, k2) = minResidual;
-
-                }
-            }
-        }
 
 //        float sigma[] = {0,2,2};
 //        filterGaussian(residual,sigma);
@@ -720,62 +858,27 @@ namespace Gadgetron {
 //        hoNDArray<uint16_t> fmIndex = solve_MRF_alphabeta(num_iterations, field_map_strengths, residual, second_deriv);
 
 
+        auto r2star_map = calculate_r2star_map(data_orig,fmIndex,r2stars_fine,field_map_strengths,phiMatrix,echoTimes);
+
         hoNDArray<float> field_map = create_field_map(fmIndex,field_map_strengths);
 
 
         // Do fat-water separation with current field map and R2* estimates
-        hoNDArray<float> r2star_map(field_map.get_dimensions());
-
-        for (int k1 = 0; k1 < X; k1++) {
-            for (int k2 = 0; k2 < Y; k2++) {
-
-                Cmat tempSignal(S,N);
-
-                // Get current signal
-                for (int k4 = 0; k4 < N; k4++) {
-                    for (int k5 = 0; k5 < S; k5++) {
-                        tempSignal(k5, k4) = data(k1, k2, 0, 0, k4, k5, 0);
-                    }
-                }
-                // Get current Psi matrix
-//                fm = field_map_strengths[fmIndex(k1, k2)];
-                fm = field_map(k1,k2);
-                r2star = r2stars[r2starIndex(k1, k2, fmIndex(k1, k2))];
-                r2star_map(k1,k2) = r2star;
-                Cmat psiMatrix(nte,nspecies);
-                for (int k3 = 0; k3 < nte; k3++) {
-                    auto curModulation = exp(-r2star * echoTimes[k3] +2if* PI * echoTimes[k3] * fm);
-                    for (int k4 = 0; k4 < nspecies; k4++) {
-                        psiMatrix(k3, k4) = phiMatrix(k3, k4) * curModulation;
-                    }
-                }
-
-                // Solve for water and fat
 
 
-
-                Cmat curWaterFat = arma::solve(psiMatrix.t()*psiMatrix,psiMatrix.t()*tempSignal,arma::solve_opts::equilibrate);
-//                hesv(AhA, curWaterFat);
-                for (int k4 = 0; k4 < N; k4++) {
-                    for (int k5 = 0; k5 < 2; k5++) { // 2 elements for water and fat currently
-                        out(k1, k2, 0, 0, k4, k5, 0) = curWaterFat(k5, k4);
-                    }
-                }
-
-            }
-        }
+        auto out = separate_species(data_orig, echoTimes, phiMatrix, r2star_map, field_map);
 
 
-        sqrt_inplace(&second_deriv);
+//        sqrt_inplace(&second_deriv);
 
-//        fat_water_mixed_fitting(field_map,r2star_map,out,data,second_deriv, a,echoTimes,fieldStrength);
+//        fat_water_mixed_fitting(field_map,r2star_map,out,data_orig,second_deriv, a,echoTimes,fieldStrength);
 
 
-
+/*
         out = *upsample<std::complex<float>,2>(&out);
         field_map = *upsample<float,2>(&field_map);
         r2star_map = *upsample<float,2>(&r2star_map);
-
+*/
 //        fat_water_mixed_fitting(field_map, r2star_map, out, data_orig,second_deriv,
 //                                a, echoTimes, fieldStrength);
 
