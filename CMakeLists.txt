@@ -332,6 +332,12 @@ else()
   message("Required dependencies for gadget compilation not found (ACE, ISMRMRD, FFTW3, HDF5).")
 endif()
 
+option(BUILD_WITH_GPERFTOOLS_PROFILER "Build with the gperftools profiler." Off)
+if (BUILD_WITH_GPERFTOOLS_PROFILER)
+  message("Adding gpertools to build.")
+  find_package(Gperftools REQUIRED)
+endif()
+
 add_subdirectory(test)
 add_subdirectory(cmake)
 add_subdirectory(doc)
