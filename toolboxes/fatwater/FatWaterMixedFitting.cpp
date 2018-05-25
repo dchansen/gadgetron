@@ -77,14 +77,14 @@ public:
     };
 
     template<class T>
-    bool operator()(const T* const fm_ptr, const T* const r2star_ptr, const T* const water_ptr, const T* const fat_ptr, T* e) const {
+    bool operator()(const T* const fm_ptr, const T* const water_ptr, const T* const fat_ptr, T* e) const {
 
 
         const T& fm = *fm_ptr;
-        const T& r2star = *r2star_ptr;
+//        const T& r2star = *r2star_ptr;
 //        T fm = T(0.0);
 //        T r2star = T(0.0);
-//        const double r2star = r2star;
+        const double r2star = r2star;
 //        float fm = 0;
 //        T r2star = T(0);
         auto water = complext<T>(water_ptr[0],water_ptr[1]);
@@ -230,20 +230,20 @@ private:
 //
 
 struct DiffLoss {
-    DiffLoss(double scale1, double scale2): scale1_(scale1), scale2_(scale2){}
-    template<class T> bool operator()(const T* const base, const T* const dx, const T* const dy, T* residual) const{
+    DiffLoss(double scale1): scale1_(scale1){}
+    template<class T> bool operator()(const T* const base, const T* const dx,  T* residual) const{
 
         residual[0] = scale1_*(base[0]-dx[0]);
-        residual[1] = scale2_*(base[0]-dy[0]);
+
         return true;
     }
 
 private:
     const double scale1_;
-    const double scale2_;
+
 };
 
-/*
+
 static void add_regularization(ceres::Problem & problem, hoNDArray<double>& field_map, const hoNDArray<float>& lambda_map, ceres::LossFunction* loss=NULL){
 
     const size_t X = field_map.get_size(0);
@@ -254,14 +254,23 @@ static void add_regularization(ceres::Problem & problem, hoNDArray<double>& fiel
 
             auto weight1 = std::min(lambda_map(k1,k2),lambda_map(k1+1,k2));
             auto weight2 = std::min(lambda_map(k1,k2),lambda_map(k1,k2+1));
-            auto cost_function = new ceres::AutoDiffCostFunction<DiffLoss,2,1,1,1>(new DiffLoss(weight1,weight2));
-            std::vector<double*> ptrs = {&field_map(k1,k2),&field_map(k1+1,k2),&field_map(k1,k2+1)};
+            {
+                auto cost_function = new ceres::AutoDiffCostFunction<DiffLoss,1, 1, 1>(new DiffLoss(weight1));
+                std::vector<double *> ptrs = {&field_map(k1, k2), &field_map(k1 + 1, k2)};
 
-            problem.AddResidualBlock(cost_function,loss,ptrs);
+                problem.AddResidualBlock(cost_function, loss, ptrs);
+            }
+            {
+                auto cost_function = new ceres::AutoDiffCostFunction<DiffLoss, 1, 1, 1>(new DiffLoss(weight2));
+                std::vector<double *> ptrs = {&field_map(k1, k2), &field_map(k1, k2+1)};
+
+                problem.AddResidualBlock(cost_function, loss, ptrs);
+            }
         }
     }
-}*/
+}
 
+/*
 static void add_regularization(ceres::Problem & problem, hoNDArray<double>& field_map, float lambda, ceres::LossFunction* loss=NULL){
 
     const size_t X = field_map.get_size(0);
@@ -277,7 +286,7 @@ static void add_regularization(ceres::Problem & problem, hoNDArray<double>& fiel
             problem.AddResidualBlock(cost_function,loss,ptrs);
         }
     }
-}
+}*/
 
 
 void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_mapF, hoNDArray<float> &r2star_mapF,
@@ -358,11 +367,11 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_mapF, hoNDArray<
 
 
 
-            auto cost_function = new ceres::AutoDiffCostFunction<FatWaterModelCeres<2,4,complex_residual>,8,1,1,2,2>(
+            auto cost_function = new ceres::AutoDiffCostFunction<FatWaterModelCeres<2,4,complex_residual>,8,1,2,2>(
                     new FatWaterModelCeres<2,4,complex_residual>(alg_,TEs_repeated,signal,fieldstrength,r2));
 
 //            std::vector<double> b = {f,r2,water.real(),water.imag(),fat.real(),fat.imag()};
-            std::vector<double*> b = {&f,&r2, (double*)&water,(double*)&fat};
+            std::vector<double*> b = {&f, (double*)&water,(double*)&fat};
             problem.AddResidualBlock(cost_function, nullptr, b);
 //            problem.SetParameterLowerBound(&r2,0,0);
 //            problem.SetParameterUpperBound(&r2,0,500);
@@ -392,9 +401,9 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_mapF, hoNDArray<
         }
     }
 //    add_regularization(problem,field_map,lambda_map);
-    add_regularization(problem,field_map,2);
+//    add_regularization(problem,field_map,2);
 //    hoNDArray<
-    add_regularization(problem,r2star_map,1.0, new ceres::SoftLOneLoss(2));
+//    add_regularization(problem,r2star_map,1.0, new ceres::SoftLOneLoss(2));
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
