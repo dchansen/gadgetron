@@ -5,6 +5,8 @@
 #include <ismrmrd/xml.h>
 #include <unordered_map>
 #include <numeric>
+#include <boost/range/iterator_range.hpp>
+#include <boost/iterator/transform_iterator.hpp>
 #include "ImageAccumulatorGadget.h"
 
 
@@ -37,7 +39,7 @@ static size_t header_dimension_from_string(std::string name){
     if (name == "S") return 1;
     if (name == "LOC") return 2;
 
-    throw std::runtime_error("Name " + name + " does not match a header dimension);
+    throw std::runtime_error("Name " + name + " does not match a header dimension");
 
 }
 
@@ -80,34 +82,83 @@ int Gadgetron::ImageAccumulatorGadget::process_config(ACE_Message_Block *mb) {
 
 }
 
-bool Gadgetron::ImageAccumulatorGadget::same_size(std::vector<Gadgetron::IsmrmrdImageArray>& values){
+//bool Gadgetron::ImageAccumulatorGadget::same_size(std::vector<Gadgetron::IsmrmrdImageArray>& values){
+//
+//    if (values.size() <= 1)
+//        return true;
+//
+//    auto& im = values.front().data_;
+//    return std::all_of(values.begin()+1,values.end(),[&](auto & im2 ){return im.dimensions_equal(im2.data_);});
+//
+//}
 
-    if (values.size() <= 1)
-        return true;
-
-    auto& im = values.front().data_;
-    return std::all_of(values.begin()+1,values.end(),[&](auto & im2 ){return im.dimensions_equal(im2.data_);});
-
-}
+namespace {
 
 
+    template<class T, int DIM> class combiner {
 
-template<class T> hoNDArray<T> combine(std::vector<hoNDArray<T>> arrays) {
+    public:
+        static void
+        combine_along(T *out, const T *in, const std::vector<size_t> dims, const std::vector<size_t> &out_stride,
+                      const std::vector<size_t> in_stride, size_t combine_dim) {
+            for (int i = 0; i < dims[DIM]; i++) {
+                combiner<T,DIM-1>::combine_along(out + out_stride[DIM] * i, in + in_stride[DIM] * i, dims, out_stride,
+                                          in_stride,
+                                          combine_dim);
+            }
 
-    std::vector<size_t> new_dimensions = *arrays.front().get_dimensions();
-    new_dimensions.push_back(arrays.size());
+        }
 
-    hoNDArray<T> result(new_dimensions);
+    };
 
-    T* data_ptr = result.get_data_ptr();
+    template<class T> class combiner<T,0> {
+    public:
+        static void
+        combine_along(T *out, const T *in, const std::vector<size_t> dims, const std::vector<size_t> &out_stride,
+                      const std::vector<size_t> in_stride, size_t combine_dim) {
+            for (int i = 0; i < dims[0]; i++) {
+                out[i * out_stride[0]] = in[i];
+            }
+        }
+    };
 
-    for (auto arr : arrays) {
-        std::copy(arr.begin(),arr.end(),data_ptr);
-        data_ptr += arr.get_number_of_elements();
+
+            template<class T> std::vector<size_t> calculate_strides(const hoNDArray<T>& array) {
+        auto dims = *array.get_dimensions();
+        auto strides = std::vector<size_t>(dims.size(),1);
+
+        std::partial_sum(dims.begin(),dims.end()-1,strides.begin()+1,std::multiplies<size_t>());
+
+        return strides;
     }
 
-    return result;
-}
+    template<class RANGE, int DIMS> auto combine_arrays_along(RANGE &input_arrays,size_t combine_dim) {
+
+        using T = typename decltype(*input_arrays.begin())::value_type;
+        auto output_dims = *input_arrays.front().get_dimensions();
+        output_dims[combine_dim] = 0;
+
+        for (const auto & array : input_arrays) output_dims[combine_dim] += array.get_size(combine_dim);
+
+        hoNDArray<T> out(output_dims);
+
+        auto out_strides = calculate_strides(out);
+
+        T* output_data = out.get_data_ptr();
+
+        for (const auto & array : input_arrays) {
+            auto dims = *array.get_dimensions();
+            auto in_strides = calculate_strides(array);
+            combiner<T,DIMS-1>::combine_along(output_data,array.get_data_ptr(),dims,out_strides,in_strides,combine_dim);
+            output_data += out_strides[combine_dim-1]*dims[combine_dim];
+        }
+
+        return out;
+
+    }
+
+};
+
 
 
 
@@ -116,24 +167,28 @@ template<class T> hoNDArray<T> combine(std::vector<hoNDArray<T>> arrays) {
 Gadgetron::IsmrmrdImageArray
 Gadgetron::ImageAccumulatorGadget::combine_images(std::vector<Gadgetron::IsmrmrdImageArray>& images) {
 
-    if (!same_size(images)) throw std::runtime_error("Images do not have the same size");
+//    if (!same_size(images)) throw std::runtime_error("Images do not have the same size");
 
     size_t combine_dimension = image_dimension_from_string(combine_along.value());
 
+    auto image_lambda = [](auto m) { return m.data_;};
+    auto header_lambda = [](auto m) { return m.headers_;};
 
-    std::vector<hoNDArray<std::com
+    //Using boost range and transform iterators to avoid copying from the vector
 
+    auto image_range = boost::make_iterator_range(boost::make_transform_iterator(images.begin(),image_lambda),
+            boost::make_transform_iterator(images.end(),image_lambda));
 
-
-
-    }
-
-
-
-
-
+    auto header_range = boost::make_iterator_range(boost::make_transform_iterator(images.begin(),header_lambda),
+                                             boost::make_transform_iterator(images.end(),header_lambda));
 
 
+    Gadgetron::IsmrmrdImageArray result =
+            { combine_arrays_along<decltype(image_range), 7>(image_range,combine_dimension),
+              combine_arrays_along<decltype(header_range),3>(header_range,combine_dimension),
+               std::vector< ISMRMRD::MetaContainer>()};
+
+    return result;
 }
 
 int Gadgetron::ImageAccumulatorGadget::process(Gadgetron::GadgetContainerMessage<Gadgetron::IsmrmrdImageArray> *m1) {
@@ -150,8 +205,17 @@ int Gadgetron::ImageAccumulatorGadget::process(Gadgetron::GadgetContainerMessage
             [&](uint16_t val){return seen_values.count(val);});
 
     if (done){
+        auto result_array = combine_images(images);
+        images.clear();
+        seen_values.clear();
+        auto msg = new GadgetContainerMessage<IsmrmrdImageArray>(std::move(result_array));
+        this->next()->putq(msg);
 
     }
     return GADGET_OK;
 }
+
+
+GADGET_FACTORY_DECLARE(ImageAccumulatorGadget)
+
 

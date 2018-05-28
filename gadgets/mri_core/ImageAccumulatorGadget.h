@@ -35,7 +35,7 @@ EXPORTGADGETSMRICORE class ImageAccumulatorGadget :  public Gadget1<IsmrmrdImage
     template<class T> auto extract_value(T& val);
 
     IsmrmrdImageArray combine_images(std::vector<IsmrmrdImageArray>&);
-    static bool same_size(std::vector<IsmrmrdImageArray>&);
+
 
         size_t encoding_spaces;
         std::vector<IsmrmrdImageArray> images;
