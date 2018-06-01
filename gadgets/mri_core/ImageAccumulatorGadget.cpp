@@ -169,7 +169,8 @@ Gadgetron::ImageAccumulatorGadget::combine_images(std::vector<Gadgetron::Ismrmrd
 
 //    if (!same_size(images)) throw std::runtime_error("Images do not have the same size");
 
-    size_t combine_dimension = image_dimension_from_string(combine_along.value());
+    size_t combine_dimension_image = image_dimension_from_string(combine_along.value());
+    size_t combine_dimension_header = header_dimension_from_string(combine_along.value());
 
     auto image_lambda = [](auto m) { return m.data_;};
     auto header_lambda = [](auto m) { return m.headers_;};
@@ -182,11 +183,14 @@ Gadgetron::ImageAccumulatorGadget::combine_images(std::vector<Gadgetron::Ismrmrd
     auto header_range = boost::make_iterator_range(boost::make_transform_iterator(images.begin(),header_lambda),
                                              boost::make_transform_iterator(images.end(),header_lambda));
 
-
+    auto ninjas = images[0].data_.get_number_of_dimensions();
     Gadgetron::IsmrmrdImageArray result =
-            { combine_arrays_along<decltype(image_range), 7>(image_range,combine_dimension),
-              combine_arrays_along<decltype(header_range),3>(header_range,combine_dimension),
+            { combine_arrays_along<decltype(image_range), 7>(image_range,combine_dimension_image),
+              combine_arrays_along<decltype(header_range),3>(header_range,combine_dimension_header),
                std::vector< ISMRMRD::MetaContainer>()};
+    for (auto& im : images){
+        result.meta_.insert(result.meta_.end(),im.meta_.begin(),im.meta_.end());
+    }
 
     return result;
 }

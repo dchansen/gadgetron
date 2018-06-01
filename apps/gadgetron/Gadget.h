@@ -242,18 +242,23 @@ namespace Gadgetron{
         }
 
         int success;
+#ifdef NDEBUG //We actually want a full stack trace in debug mode, so only catch in release.
         try{ success = this->process(m); }
         catch (std::runtime_error& err){
           GEXCEPTION(err,"Gadget::process() failed\n");
           success = -1;
         }
-
-        if (success == -1) {
+#else
+        success = this->process(m);
+#endif
+        if (success == -1){
           m->release();
           this->flush();
           GERROR("Gadget (%s) process failed\n", this->module()->name());
           return GADGET_FAIL;
         }
+
+
       }
       return 0;
     }

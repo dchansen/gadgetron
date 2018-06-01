@@ -25,7 +25,8 @@
     <writer><slot>1022</slot><dll>gadgetron_mricore</dll><classname>MRIImageWriter</classname></writer>
 
     <!-- Noise prewhitening -->
-    <gadget><name>NoiseAdjust</name><dll>gadgetron_mricore</dll><classname>NoiseAdjustGadget</classname></gadget>
+    <gadget><name>NoiseAdjust</name><dll>gadgetron_mricore</dll><classname>NoiseAdjustGadget</classname>
+    </gadget>
 
     <!-- RO asymmetric echo handling -->
     <!--<gadget><name>AsymmetricEcho</name><dll>gadgetron_mricore</dll><classname>AsymmetricEchoAdjustROGadget</classname></gadget>-->
@@ -38,7 +39,8 @@
         <name>AccTrig</name>
         <dll>gadgetron_mricore</dll>
         <classname>AcquisitionAccumulateTriggerGadget</classname>
-        <property><name>trigger_dimension</name><value>contrast</value></property>
+        <property><name>trigger_dimension</name><value>slice</value></property>
+        <property><name>sorting_dimension</name><value>contrast</value></property>
     </gadget>
 
     <gadget>
@@ -63,14 +65,16 @@
         <property><name>verbose</name><value>true</value></property>
 
         <!-- averaging across repetition -->
-        <property><name>average_all_ref_N</name><value>true</value></property>
+        <property><name>average_all_ref_N</name><value>false</value></property>
         <!-- every set has its own kernels -->
         <property><name>average_all_ref_S</name><value>false</value></property>
+        <!-- Only use the first echo for reference data, to ensure phase correctness -->
+
         <!-- whether always to prepare ref if no acceleration is used -->
         <property><name>prepare_ref_always</name><value>false</value></property>
     </gadget>
 
-    <!-- Coil compression -->
+     <!--Coil compression-->
     <!--<gadget>-->
         <!--<name>CoilCompression</name>-->
         <!--<dll>gadgetron_mricore</dll>-->
@@ -91,92 +95,100 @@
     <!--</gadget>-->
 
     <!-- Recon -->
-    <!--gadget>
+
+    <gadget>
     <name>Recon</name>
     <dll>gadgetron_mricore</dll>
     <classname>GenericReconCartesianSpiritGadget</classname>
 
     <!-- image series -->
-    <!--<property><name>image_series</name><value>0</value></property>-->
+    <property><name>image_series</name><value>0</value></property>
 
-    <!-- Coil map estimation, Inati or Inati_Iter -->
-    <!--<property><name>coil_map_algorithm</name><value>Inati</value></property>-->
+     <!--Coil map estimation, Inati or Inati_Iter-->
+    <property><name>coil_map_algorithm</name><value>Inati</value></property>
 
-    <!--</gadget&ndash;&gt;-->
-
-    <gadget>
-        <name>Recon</name>
-        <dll>gadgetron_mricore</dll>
-        <classname>GenericReconCartesianGrappaGadget</classname>
-
-        <!-- image series -->
-        <property><name>image_series</name><value>0</value></property>
-
-        <!-- Coil map estimation, Inati or Inati_Iter -->
-        <property><name>coil_map_algorithm</name><value>Inati_Iter</value></property>
-
-        <!-- Down stream coil compression -->
-        <property><name>downstream_coil_compression</name><value>false</value></property>
-        <property><name>downstream_coil_compression_thres</name><value>0.002</value></property>
-        <property><name>downstream_coil_compression_num_modesKept</name><value>0</value></property>
-
-        <!-- parameters for debug and timing -->
-        <!--property><name>debug_folder</name><value>DebugFolder</value></property-->
-        <property><name>perform_timing</name><value>true</value></property>
-        <property><name>verbose</name><value>true</value></property>
-
-        <!-- whether to send out gfactor -->
-        <property><name>send_out_gfactor</name><value>true</value></property>
     </gadget>
 
-     Partial fourier handling
-    <gadget>
-        <name>PartialFourierHandling</name>
-        <dll>gadgetron_mricore</dll>
-        <classname>GenericReconPartialFourierHandlingFilterGadget</classname>
+    <!--<gadget>-->
+        <!--<name>Recon</name>-->
+        <!--<dll>gadgetron_mricore</dll>-->
+        <!--<classname>GenericReconCartesianGrappaGadget</classname>-->
 
-        <!-- parameters for debug and timing -->
-        <!--property><name>debug_folder</name><value>DebugFolder</value></property-->
-        <property><name>perform_timing</name><value>false</value></property>
-        <property><name>verbose</name><value>false</value></property>
+        <!--&lt;!&ndash; image series &ndash;&gt;-->
+        <!--<property><name>image_series</name><value>0</value></property>-->
 
-        <!-- if incoming images have this meta field, it will not be processed -->
-        <property><name>skip_processing_meta_field</name><value>Skip_processing_after_recon</value></property>
+        <!--&lt;!&ndash; Coil map estimation, Inati or Inati_Iter &ndash;&gt;-->
+        <!--<property><name>coil_map_algorithm</name><value>Inati</value></property>-->
 
-        <!-- Parfial fourier handling filter parameters -->
-        <property><name>partial_fourier_filter_RO_width</name><value>0.15</value></property>
-        <property><name>partial_fourier_filter_E1_width</name><value>0.15</value></property>
-        <property><name>partial_fourier_filter_E2_width</name><value>0.15</value></property>
-        <property><name>partial_fourier_filter_densityComp</name><value>false</value></property>
-    </gadget>
+        <!--&lt;!&ndash; Down stream coil compression &ndash;&gt;-->
+        <!--<property><name>downstream_coil_compression</name><value>false</value></property>-->
+        <!--<property><name>downstream_coil_compression_thres</name><value>0.002</value></property>-->
+        <!--<property><name>downstream_coil_compression_num_modesKept</name><value>0</value></property>-->
 
-    <!-- Kspace filtering -->
-    <gadget>
-        <name>KSpaceFilter</name>
-        <dll>gadgetron_mricore</dll>
-        <classname>GenericReconKSpaceFilteringGadget</classname>
+        <!--&lt;!&ndash; parameters for debug and timing &ndash;&gt;-->
+        <!--&lt;!&ndash;property><name>debug_folder</name><value>DebugFolder</value></property&ndash;&gt;-->
+        <!--<property><name>perform_timing</name><value>true</value></property>-->
+        <!--<property><name>verbose</name><value>true</value></property>-->
 
-        <!-- parameters for debug and timing -->
+        <!--&lt;!&ndash; whether to send out gfactor &ndash;&gt;-->
+        <!--<property><name>send_out_gfactor</name><value>true</value></property>-->
+    <!--</gadget>-->
+    <!--<gadget>-->
+        <!--<name>Recon</name>-->
+        <!--<dll>gadgetron_mricore</dll>-->
+        <!--<classname>GenericReconCartesianFFTGadget</classname>-->
+    <!--</gadget>-->
 
-        <property><name>perform_timing</name><value>false</value></property>
-        <property><name>verbose</name><value>false</value></property>
 
-        <!-- if incoming images have this meta field, it will not be processed -->
-        <property><name>skip_processing_meta_field</name><value>Skip_processing_after_recon</value></property>
 
-        <!-- parameters for kspace filtering -->
-        <property><name>filterRO</name><value>Gaussian</value></property>
-        <property><name>filterRO_sigma</name><value>1.0</value></property>
-        <property><name>filterRO_width</name><value>0.15</value></property>
+     <!--Partial fourier handling-->
+    <!--<gadget>-->
+        <!--<name>PartialFourierHandling</name>-->
+        <!--<dll>gadgetron_mricore</dll>-->
+        <!--<classname>GenericReconPartialFourierHandlingFilterGadget</classname>-->
 
-        <property><name>filterE1</name><value>Gaussian</value></property>
-        <property><name>filterE1_sigma</name><value>1.0</value></property>
-        <property><name>filterE1_width</name><value>0.15</value></property>
+        <!--&lt;!&ndash; parameters for debug and timing &ndash;&gt;-->
+        <!--&lt;!&ndash;property><name>debug_folder</name><value>DebugFolder</value></property&ndash;&gt;-->
+        <!--<property><name>perform_timing</name><value>false</value></property>-->
+        <!--<property><name>verbose</name><value>false</value></property>-->
 
-        <property><name>filterE2</name><value>Gaussian</value></property>
-        <property><name>filterE2_sigma</name><value>1.0</value></property>
-        <property><name>filterE2_width</name><value>0.15</value></property>
-    </gadget>
+        <!--&lt;!&ndash; if incoming images have this meta field, it will not be processed &ndash;&gt;-->
+        <!--<property><name>skip_processing_meta_field</name><value>Skip_processing_after_recon</value></property>-->
+
+        <!--&lt;!&ndash; Parfial fourier handling filter parameters &ndash;&gt;-->
+        <!--<property><name>partial_fourier_filter_RO_width</name><value>0.15</value></property>-->
+        <!--<property><name>partial_fourier_filter_E1_width</name><value>0.15</value></property>-->
+        <!--<property><name>partial_fourier_filter_E2_width</name><value>0.15</value></property>-->
+        <!--<property><name>partial_fourier_filter_densityComp</name><value>false</value></property>-->
+    <!--</gadget>-->
+
+    <!--&lt;!&ndash; Kspace filtering &ndash;&gt;-->
+    <!--<gadget>-->
+        <!--<name>KSpaceFilter</name>-->
+        <!--<dll>gadgetron_mricore</dll>-->
+        <!--<classname>GenericReconKSpaceFilteringGadget</classname>-->
+
+        <!--&lt;!&ndash; parameters for debug and timing &ndash;&gt;-->
+
+        <!--<property><name>perform_timing</name><value>false</value></property>-->
+        <!--<property><name>verbose</name><value>false</value></property>-->
+
+        <!--&lt;!&ndash; if incoming images have this meta field, it will not be processed &ndash;&gt;-->
+        <!--<property><name>skip_processing_meta_field</name><value>Skip_processing_after_recon</value></property>-->
+
+        <!--&lt;!&ndash; parameters for kspace filtering &ndash;&gt;-->
+        <!--<property><name>filterRO</name><value>Gaussian</value></property>-->
+        <!--<property><name>filterRO_sigma</name><value>1.0</value></property>-->
+        <!--<property><name>filterRO_width</name><value>0.15</value></property>-->
+
+        <!--<property><name>filterE1</name><value>Gaussian</value></property>-->
+        <!--<property><name>filterE1_sigma</name><value>1.0</value></property>-->
+        <!--<property><name>filterE1_width</name><value>0.15</value></property>-->
+
+        <!--<property><name>filterE2</name><value>Gaussian</value></property>-->
+        <!--<property><name>filterE2_sigma</name><value>1.0</value></property>-->
+        <!--<property><name>filterE2_width</name><value>0.15</value></property>-->
+    <!--</gadget>-->
     <gadget>
         <name>Combiner</name>
         <dll>gadgetron_mricore</dll>
@@ -197,7 +209,7 @@
         <classname>GenericReconFieldOfViewAdjustmentGadget</classname>
 
         <!-- parameters for debug and timing -->
- 
+
         <property><name>perform_timing</name><value>false</value></property>
         <property><name>verbose</name><value>false</value></property>
     </gadget>
@@ -232,10 +244,12 @@
         <dll>gadgetron_mricore</dll>
         <classname>ImageArraySplitGadget</classname>
     </gadget>
+
     <gadget>
         <name>Extract</name>
         <dll>gadgetron_mricore</dll>
         <classname>ExtractGadget</classname>
+
     </gadget>
 
     <!-- after recon processing -->

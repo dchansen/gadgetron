@@ -793,7 +793,7 @@ namespace Gadgetron
     //}
 
     template <typename T> 
-    void hoNDArray<T>::get_sub_array(const std::vector<size_t>& start, std::vector<size_t>& size, hoNDArray<T>& out)
+    void hoNDArray<T>::get_sub_array(const std::vector<size_t>& start, std::vector<size_t>& size, hoNDArray<T>& out) const
     {
         if ( start.size() != size.size() ){
             BOOST_THROW_EXCEPTION( runtime_error("hoNDArray<>::get_sub_array failed"));

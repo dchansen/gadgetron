@@ -244,28 +244,36 @@ private:
 };
 
 
+
+
 static void add_regularization(ceres::Problem & problem, hoNDArray<double>& field_map, const hoNDArray<float>& lambda_map, ceres::LossFunction* loss=NULL){
 
+
+
+    auto add_term = [&](int x1, int y1, int x2, int y2){
+        auto weight = std::min(lambda_map(x1,y1),lambda_map(x2,y2));
+        auto cost_function = new ceres::AutoDiffCostFunction<DiffLoss,1, 1, 1>(new DiffLoss(weight));
+        std::vector<double *> ptrs = {&field_map(x1, y1), &field_map(x2, y2)};
+        problem.AddResidualBlock(cost_function, loss, ptrs);
+    };
     const size_t X = field_map.get_size(0);
     const size_t Y = field_map.get_size(1);
 
-    for (int k2 = 0; k2 < Y-1; k2++){
-        for (int k1 = 0; k1 < X-1; k1++){
+    for (int k2 = 0; k2 < Y; k2++){
+        for (int k1 = 0; k1 < X; k1++){
 
-            auto weight1 = std::min(lambda_map(k1,k2),lambda_map(k1+1,k2));
-            auto weight2 = std::min(lambda_map(k1,k2),lambda_map(k1,k2+1));
-            {
-                auto cost_function = new ceres::AutoDiffCostFunction<DiffLoss,1, 1, 1>(new DiffLoss(weight1));
-                std::vector<double *> ptrs = {&field_map(k1, k2), &field_map(k1 + 1, k2)};
-
-                problem.AddResidualBlock(cost_function, loss, ptrs);
+            if (k1 < X-1){
+                add_term(k1,k2,k1+1,k2);
             }
-            {
-                auto cost_function = new ceres::AutoDiffCostFunction<DiffLoss, 1, 1, 1>(new DiffLoss(weight2));
-                std::vector<double *> ptrs = {&field_map(k1, k2), &field_map(k1, k2+1)};
-
-                problem.AddResidualBlock(cost_function, loss, ptrs);
+            if (k2 < Y-1){
+                add_term(k1,k2,k1,k2+1);
             }
+//            if (k2 < Y-1 && k1 < X-1){
+//                add_term(k1,k2,k1+1,k2+1);
+//            }
+//            if (k2 < Y-1 && k1 > 0){
+//                add_term(k1,k2,k1-1,k2+1);
+//            }
         }
     }
 }
@@ -400,7 +408,7 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_mapF, hoNDArray<
 
         }
     }
-//    add_regularization(problem,field_map,lambda_map);
+    add_regularization(problem,field_map,lambda_map);
 //    add_regularization(problem,field_map,2);
 //    hoNDArray<
 //    add_regularization(problem,r2star_map,1.0, new ceres::SoftLOneLoss(2));
