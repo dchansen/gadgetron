@@ -87,7 +87,7 @@ namespace Gadgetron{
 
         Gadgetron::ChemicalSpecies f("fat");
         f.ampFreq_.emplace_back(0.0796f-0.0510if,-3.8415);
-        f.ampFreq_.emplace_back(0.693,-3.4860);
+        f.ampFreq_.emplace_back(0.6466,-3.4860);
         f.ampFreq_.emplace_back(0.0957f+0.014if,-2.7583);
         f.ampFreq_.emplace_back(-0.0047f-0.0221if,-1.8762);
         f.ampFreq_.emplace_back(0.0160f-0.015if,-0.5047);
