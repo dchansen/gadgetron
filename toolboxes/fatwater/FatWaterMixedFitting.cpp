@@ -333,9 +333,9 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_mapF, hoNDArray<
     ceres::Solver::Options options;
 //    options.max_num_iterations = 50;
     options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-    options.num_threads = 6;
-//    options.minimizer_type = ceres::LINE_SEARCH;
-//    options.line_search_direction_type = ceres::LBFGS;
+    options.num_threads = 4;
+    options.minimizer_type = ceres::LINE_SEARCH;
+    options.line_search_direction_type = ceres::LBFGS;
 //    options.nonlinear_conjugate_gradient_type = ceres::POLAK_RIBIERE;
 //    options.max_lbfgs_rank = 10;
 //    options.use_nonmonotonic_steps = true;
@@ -409,6 +409,7 @@ void Gadgetron::fat_water_mixed_fitting(hoNDArray<float> &field_mapF, hoNDArray<
         }
     }
     add_regularization(problem,field_map,lambda_map);
+
 //    add_regularization(problem,field_map,2);
 //    hoNDArray<
 //    add_regularization(problem,r2star_map,1.0, new ceres::SoftLOneLoss(2));
