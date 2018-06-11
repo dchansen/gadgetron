@@ -33,8 +33,8 @@ namespace {
 
         assert(weight >= 0);
 //        weight = std::max(weight,0.0f);
-        float lambda = std::max(std::min(second_deriv[idx], second_deriv[idx2]), 0.0f);
-        weight *= lambda * scaling;
+        float lambda = std::max(std::min(second_deriv[idx], second_deriv[idx2]), 0.0f)*scaling;
+        weight *= lambda ;
 
         assert(lambda >= 0);
 
@@ -102,28 +102,28 @@ namespace {
                     update_regularization_edge(graph, field_map, proposed_field_map, second_deriv, idx, idx2, edge, 1);
                 }
 
-                if (k1 < (dims[0] - 1) && k2 < (dims[1] - 1)) {
-                    size_t idx2 = idx + dims[0] + 1;
-                    size_t edge = graph.edge_from_offset(idx, vector_td<int, 2>(1, 1));
-                    update_regularization_edge(graph, field_map, proposed_field_map, second_deriv, idx, idx2, edge,
-                                               1 / std::sqrt(2.0f));
-                }
-
-                if (k1 < (dims[0] - 1) && k2 > 0) {
-                    size_t idx2 = idx - dims[0] + 1;
-                    size_t edge = graph.edge_from_offset(idx, vector_td<int, 2>(1, -1));
-                    update_regularization_edge(graph, field_map, proposed_field_map, second_deriv, idx, idx2, edge,
-                                               1 / std::sqrt(2.0f));
-                }
+//                if (k1 < (dims[0] - 1) && k2 < (dims[1] - 1)) {
+//                    size_t idx2 = idx + dims[0] + 1;
+//                    size_t edge = graph.edge_from_offset(idx, vector_td<int, 2>(1, 1));
+//                    update_regularization_edge(graph, field_map, proposed_field_map, second_deriv, idx, idx2, edge,
+//                                               1 / std::sqrt(2.0f));
+//                }
+//
+//                if (k1 < (dims[0] - 1) && k2 > 0) {
+//                    size_t idx2 = idx - dims[0] + 1;
+//                    size_t edge = graph.edge_from_offset(idx, vector_td<int, 2>(1, -1));
+//                    update_regularization_edge(graph, field_map, proposed_field_map, second_deriv, idx, idx2, edge,
+//                                               1 / std::sqrt(2.0f));
+//                }
 
 
                 float residual_diff = residual_diff_map[idx];
 
                 if (residual_diff > 0) {
-                    capacity_map[graph.edge_from_source(idx)] += residual_diff;
+                    capacity_map[graph.edge_from_source(idx)] += int(residual_diff);
 
                 } else {
-                    capacity_map[graph.edge_to_sink(idx)] -= residual_diff;
+                    capacity_map[graph.edge_to_sink(idx)] -= int(residual_diff);
                 }
 
             }

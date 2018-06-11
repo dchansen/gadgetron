@@ -1,8 +1,11 @@
 //
 // Created by dch on 09/04/18.
 //
-#pragma once
 
+#ifndef IMAGEGRAPH_H
+#define IMAGEGRAPH_H
+#pragma once
+#
 #include <boost/graph/graph_traits.hpp>
 
 #include <boost/iterator/counting_iterator.hpp>
@@ -247,6 +250,44 @@ public:
         return num_edges_;
     }
 
+
+    std::pair<ImageGraph::edge_descriptor ,bool > add_edge(const ImageGraph::vertex_descriptor v1 , const ImageGraph::vertex_descriptor v2){
+
+
+
+
+        edge_descriptor  result;
+
+        if ((v1 == source_vertex || v1 == sink_vertex) && (v2 == source_vertex || v2 == sink_vertex))
+            return std::make_pair(edge_descriptor(0),false);
+
+        if (v1 == source_vertex) {
+            result = num_image_vertices_ * edges_per_vertex + v2;
+        } else if (v1 == sink_vertex){
+            result =num_image_vertices_* (edges_per_vertex+1)+v2;
+
+        } else if (v2 == source_vertex){
+            result = v1*edges_per_vertex+edges_per_vertex-2;
+        } else if (v2 == sink_vertex){
+            result = v1*edges_per_vertex+edges_per_vertex-1;
+        } else {
+
+            auto co1 = Gadgetron::idx_to_co(v1, dims_);
+            auto co2 = Gadgetron::idx_to_co(v2, dims_);
+
+            auto diff = co2-co1;
+
+            if (std::abs(diff[0]) > 1 || std::abs(diff[1]) > 1) return std::make_pair(edge_descriptor(0) ,false);
+
+            result =  v1 * edges_per_vertex + get_edge_offset(diff);
+        }
+
+        return std::make_pair(result,true);
+
+
+
+    }
+
     std::vector<float> edge_capacity_map;
     std::vector<float> edge_residual_capicty;
     std::vector<boost::default_color_type> color_map;
@@ -296,6 +337,10 @@ size_t out_degree(ImageGraph::vertex_descriptor v, const ImageGraph& g);
 
 
 std::pair<ImageGraph::edge_iterator, ImageGraph::edge_iterator> edges(const ImageGraph& g);
+
+
+
+std::pair<ImageGraph::edge_descriptor ,bool> add_edge(ImageGraph::vertex_descriptor v1, ImageGraph::vertex_descriptor v2, ImageGraph& g);
 
 namespace boost {
 
@@ -388,3 +433,5 @@ namespace boost {
     template<> struct property_map<ImageGraph,vertex_predecessor_t >{ typedef size_t* type; typedef const size_t* const_type;};
 
 }
+
+#endif

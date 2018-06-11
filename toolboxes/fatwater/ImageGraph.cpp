@@ -22,7 +22,10 @@ std::pair<ImageGraph::vertex_iterator, ImageGraph::vertex_iterator > vertices(co
     return std::make_pair(g.vertex_begin(),g.vertex_end());
 
 };
+std::pair<ImageGraph::edge_descriptor ,bool> add_edge(ImageGraph::vertex_descriptor v1, ImageGraph::vertex_descriptor v2, ImageGraph& g){
+    return g.add_edge(v1,v2);
 
+};
 
 
 

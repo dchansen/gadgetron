@@ -6,7 +6,7 @@
 #include "hoNDArray_elemwise.h"
 #include "hoNDArray_reductions.h"
 #include "hoArmadillo.h"
-#include "ImageGraph.h"
+
 #include <boost/config.hpp>
 #include <boost/graph/push_relabel_max_flow.hpp>
 //#include <boost/graph/adjacency_list.hpp>
@@ -381,8 +381,8 @@ namespace Gadgetron {
                                                                          field_map_strengths.size() - 1);
             }
 
-//            fmIndex = doGraphCut(fmIndex,fmIndex_update,residual,second_deriv,1);
-            fmIndex = update_field_map(fmIndex, fmIndex_update, residual, second_deriv, field_map_strengths);
+            fmIndex = doGraphCut(fmIndex,fmIndex_update,residual,second_deriv,1);
+//            fmIndex = update_field_map(fmIndex, fmIndex_update, residual, second_deriv, field_map_strengths);
 /*
         if (!down_success){
             std::cout << "Down " << std::endl;
@@ -611,8 +611,8 @@ namespace Gadgetron {
 
         GadgetronTimer timer("FatWater separation");
 
-//        auto data = *downsample<std::complex<float>,2>(&data_orig);
-        auto data = data_orig;
+        auto data = *downsample<std::complex<float>,2>(&data_orig);
+//        auto data = data_orig;
 //        auto data = data_orig;
 //        float sigma[] = {1,1,0,0,0,0,0};
 //        filterGaussian(data,sigma);
@@ -764,8 +764,8 @@ namespace Gadgetron {
 
 
         // Do fat-water separation with current field map and R2* estimates
-//        field_map = *upsample<float,2>(&field_map);
-//        r2star_map = *upsample<float,2>(&r2star_map);
+        field_map = *upsample<float,2>(&field_map);
+        r2star_map = *upsample<float,2>(&r2star_map);
 
 
         auto out = separate_species(data_orig, echoTimes, phiMatrix, r2star_map, field_map);
