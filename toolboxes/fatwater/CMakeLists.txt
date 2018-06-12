@@ -29,7 +29,7 @@ add_library(gadgetron_toolbox_fatwater SHARED
   fatwater_export.h 
   fatwater.h
   fatwater.cpp
-        ImageGraph.cpp FatWaterMixedFitting.cpp FatWaterMixedFitting.h tiny_solver.h tiny_solver_autodiff_functions.h ICM.cpp ICM.h GraphCutDiego.cpp GraphCutDavid.cpp GraphCutDavid.h)
+        FatWaterMixedFitting.cpp FatWaterMixedFitting.h tiny_solver.h tiny_solver_autodiff_functions.h ICM.cpp ICM.h GraphCutDiego.cpp test_graphs.h)
 
 set_target_properties(gadgetron_toolbox_fatwater PROPERTIES VERSION ${GADGETRON_VERSION_STRING} SOVERSION ${GADGETRON_SOVERSION})
 

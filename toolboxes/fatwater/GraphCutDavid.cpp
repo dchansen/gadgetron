@@ -12,10 +12,10 @@ namespace {
     static std::mt19937 rng_state(4242);
 
 
-    typedef ImageGraph Graph;
 
 
-    void update_regularization_edge(ImageGraph &graph, const hoNDArray<uint16_t> &field_map,
+
+    template<unsigned int D> void update_regularization_edge(ImageGraph<D> &graph, const hoNDArray<uint16_t> &field_map,
                                     const hoNDArray<uint16_t> &proposed_field_map,
                                     const hoNDArray<float> &second_deriv, const size_t idx, const size_t idx2,
                                     const size_t edge_idx, float scaling) {
@@ -71,16 +71,16 @@ namespace {
 
 
     }
-    ImageGraph make_graph(const hoNDArray<uint16_t> &field_map, const hoNDArray<uint16_t> &proposed_field_map,
+    template<unsigned int D> ImageGraph<D> make_graph(const hoNDArray<uint16_t> &field_map, const hoNDArray<uint16_t> &proposed_field_map,
                      const hoNDArray<float> &residual_diff_map, const hoNDArray<float> &second_deriv) {
 
-        const auto dims = *field_map.get_dimensions();
+        const auto dims = from_std_vector<size_t,D>(*field_map.get_dimensions());
 
 
         const size_t source_idx = field_map.get_number_of_elements();
         const size_t sink_idx = source_idx + 1;
 
-        ImageGraph graph = ImageGraph(dims[0], dims[1]);
+        ImageGraph<D> graph = ImageGraph<D>(dims);
 
         auto &capacity_map = graph.edge_capacity_map;
         //Add regularization edges
@@ -134,7 +134,7 @@ namespace {
 
 }
 namespace Gadgetron {
-hoNDArray<uint16_t> update_field_map(const hoNDArray<uint16_t> &field_map_index, const hoNDArray<uint16_t> &proposed_field_map_index,
+ hoNDArray<uint16_t> update_field_map(const hoNDArray<uint16_t> &field_map_index, const hoNDArray<uint16_t> &proposed_field_map_index,
                                      const hoNDArray<float> &residuals_map, const hoNDArray<float> &second_deriv,
                                      std::vector<float> field_map_strengths) {
 
@@ -155,10 +155,10 @@ hoNDArray<uint16_t> update_field_map(const hoNDArray<uint16_t> &field_map_index,
     }
 
 
-    ImageGraph graph = make_graph(field_map_index, proposed_field_map_index, residual_diff_map, second_deriv);
+    ImageGraph<2> graph = make_graph<2>(field_map_index, proposed_field_map_index, residual_diff_map, second_deriv);
 
-    ImageGraph::vertex_descriptor source = graph.source_vertex;
-    ImageGraph::vertex_descriptor sink = graph.sink_vertex;
+    ImageGraph<2>::vertex_descriptor source = graph.source_vertex;
+    ImageGraph<2>::vertex_descriptor sink = graph.sink_vertex;
 
     float flow = boost::boykov_kolmogorov_max_flow(graph, source, sink);
 

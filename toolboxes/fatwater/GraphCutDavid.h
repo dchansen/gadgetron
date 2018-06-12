@@ -1,7 +1,7 @@
 #pragma once
 
 
-#include "ImageGraph.h"
+
 #include "hoNDArray.h"
 namespace  Gadgetron {
 

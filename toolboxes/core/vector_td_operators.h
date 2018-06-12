@@ -432,4 +432,17 @@ namespace Gadgetron{
     res %= v2;
     return res;
   }
+
+
 }
+
+
+template<class T, unsigned int D> T* std::begin(Gadgetron::vector_td<T,D>& v){
+  return v.vec;
+};
+
+template<class T, unsigned int D> T* std::end(Gadgetron::vector_td<T,D>& v){
+return v.vec+D;
+};
+
+

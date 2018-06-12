@@ -9,18 +9,16 @@
 
 #include <boost/config.hpp>
 #include <boost/graph/push_relabel_max_flow.hpp>
-//#include <boost/graph/adjacency_list.hpp>
-//#include <boost/graph/read_dimacs.hpp>
+
 #include <boost/graph/graph_utility.hpp>
 #include <boost/graph/boykov_kolmogorov_max_flow.hpp>
-//#include <boost/graph/edmonds_karp_max_flow.hpp>
+
 #include <boost/timer/timer.hpp>
 #include <boost/iterator/function_input_iterator.hpp>
 #include <iterator>
 #include "GraphCutDavid.h"
 // Curve fitting includes (from Hui's example)
-//#include "hoNDHarrWavelet.h"
-//#include "hoNDRedundantWavelet.h"
+
 #include "hoNDArray_math.h"
 
 #include <boost/random.hpp>
