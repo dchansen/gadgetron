@@ -29,7 +29,7 @@
 #include <complex>
 #include <cpu/math/hoNDImage_util.h>
 #include "FatWaterFitting.h"
-
+#include "FieldMapFitting.h"
 #ifdef max
     #undef max
 #endif // max
@@ -619,8 +619,8 @@ namespace Gadgetron {
                 sqrt_inplace(&lambda_map);
                 lambda_map /= dF;
 
-                fat_water_fitting(field_map, r2star_map, species, data, lambda_map, parameters);
-
+//                fat_water_fitting(field_map, r2star_map, species, data, lambda_map, parameters);
+                field_map_fitting(field_map,r2star_map,data,lambda_map,parameters);
                 species = separate_species(data, phi, r2star_map, field_map, parameters);
             }
 
