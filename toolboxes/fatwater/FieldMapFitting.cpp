@@ -3,8 +3,10 @@
 #include <complex>
 #include <numeric>
 #include <ceres/ceres.h>
+#include <boost/math/constants/constants.hpp>
 #include "fitting_utilities.h"
 
+constexpr double PI = boost::math::constants::pi<double>();
 namespace Gadgetron {
     namespace FatWater {
 
@@ -21,6 +23,8 @@ namespace Gadgetron {
                     for (int i = 0; i < data.size(); i++) {
                         data[i] *= std::exp(r2star * TEs[i]);
                     }
+
+                    omega = parameters.gyromagnetic_ratio_Mhz*PI;
 
 
                     std::transform(data.begin(), data.end(), angles.begin(), [](auto c) { return arg(c); });
@@ -40,7 +44,7 @@ namespace Gadgetron {
                 bool operator()(const T *const fm, T *residual) const {
                     for (int i = 0; i < N; i++) {
                         for (int j = 0; j < N; j++) {
-                            residual[j + i * N] = sqrt(weights[j + i * N] * (1.0 - cos(*fm * T(TEs_[i] - TEs_[j]) +
+                            residual[j + i * N] = sqrt(weights[j + i * N] * (1.0 - cos(*fm*omega * T(TEs_[i] - TEs_[j]) +
                                                                                        angles[i] + angles[j])));
                         }
                     }
@@ -50,6 +54,8 @@ namespace Gadgetron {
                 const std::vector<float> TEs_;
                 std::array<double, N*N> weights;
                 std::array<double, N> angles;
+                double omega;
+
             };
 
 
@@ -84,10 +90,11 @@ namespace Gadgetron {
 
                 ceres::Problem problem;
                 ceres::Solver::Options options;
-                options.minimizer_type = ceres::LINE_SEARCH;
-                options.line_search_direction_type = ceres::LBFGS;
-                options.linear_solver_type = ceres::ITERATIVE_SCHUR;
-//                options.num_threads = omp_get_max_threads();
+                options.linear_solver_type = ceres::CGNR;
+                options.num_threads = omp_get_max_threads();
+                options.use_inner_iterations = true;
+                options.num_linear_solver_threads = omp_get_max_threads();
+                std::cout << "Num threads: " << options.num_threads << std::endl;
                 options.dense_linear_algebra_library_type = ceres::EIGEN;
                 options.function_tolerance = 1e-6;
                 options.gradient_tolerance = 1e-6;
