@@ -6,4 +6,5 @@ install(FILES python.xml
                    python_buckets.xml 
                    python_image_array.xml 
                    python_passthrough.xml
+                   python_plot_waveform.xml
   DESTINATION ${GADGETRON_INSTALL_CONFIG_PATH} COMPONENT main)

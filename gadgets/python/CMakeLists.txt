@@ -59,6 +59,7 @@ set(gadgetron_python_gadgets_files
                             gadgets/rms_coil_combine.py
                             gadgets/tpat_snr_scale.py
 			                gadgets/array_image.py
+                            gadgets/plot_waveforms.py
 
         )
 
