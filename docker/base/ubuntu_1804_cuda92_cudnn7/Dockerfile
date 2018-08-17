@@ -1,21 +1,24 @@
 FROM nvidia/cuda:9.2-cudnn7-devel-ubuntu18.04
 
 RUN apt-get update --quiet && \
-    apt-get install --yes  \
-    -y apt-utils wget build-essential cython emacs python-dev python-pip python3-dev python3-pip libhdf5-serial-dev cmake git-core libboost-all-dev libfftw3-dev h5utils jq hdf5-tools liblapack-dev libxml2-dev libfreetype6-dev pkg-config libxslt-dev libarmadillo-dev libace-dev gcc-multilib libgtest-dev python3-dev liblapack-dev liblapacke-dev libplplot-dev libdcmtk-dev supervisor cmake-curses-gui neofetch supervisor net-tools
+    apt-get install --no-install-recommends --no-install-suggests --yes  \
+    software-properties-common apt-utils wget build-essential cython emacs python-dev python-pip python3-dev python3-pip libhdf5-serial-dev cmake git-core libboost-all-dev libfftw3-dev h5utils jq hdf\
+5-tools liblapack-dev libxml2-dev libfreetype6-dev pkg-config libxslt-dev libopenblas-base libopenblas-dev libarmadillo-dev libace-dev gcc-multilib libgtest-dev python3-dev liblapack-dev liblapacke-dev libplplot-dev libdcmtk-dev sup\
+ervisor cmake-curses-gui neofetch supervisor net-tools cpio gpg-agent
 
 #Python stuff
-RUN pip install --upgrade pip
-RUN pip install setuptools
-RUN pip install Cython
-RUN pip install numpy 
-RUN pip install pyxb psutil lxml pydicom
-RUN pip install 'h5py==2.5.0' 
-
 RUN apt-get update && apt-get install -y libgtk2.0-dev
 
 RUN pip3 install --upgrade pip
 RUN pip3 install -U pip setuptools
+
+# tensorflow does not work with cuda92
+RUN pip3 install --upgrade tensorflow 
+# use pytorch 0.4.0
+RUN pip3 install http://download.pytorch.org/whl/cpu/torch-0.4.0-cp36-cp36m-linux_x86_64.whl  
+RUN pip3 install torchvision
+RUN pip3 install tensorboardx visdom
+
 RUN apt-get install --no-install-recommends --no-install-suggests --yes python3-psutil python3-pyxb python3-lxml python3-numpy
 RUN apt-get install --no-install-recommends --no-install-suggests --yes python3-pil
 RUN apt-get install --no-install-recommends --no-install-suggests --yes python3-scipy
@@ -24,31 +27,13 @@ RUN pip3 install Cython tk-tools matplotlib scikit-image opencv_python pydicom s
 RUN pip3 uninstall h5py
 RUN apt-get install -y python3-h5py
 
-RUN pip3 install --upgrade tensorflow tensorflow-gpu
-RUN pip3 install http://download.pytorch.org/whl/cu91/torch-0.4.0-cp36-cp36m-linux_x86_64.whl 
-RUN pip3 install torchvision
-RUN pip3 install tensorboardx visdom
-
 # since cmake has problems to find python3 and boost-python3
 # RUN ln -s /usr/lib/x86_64-linux-gnu/libboost_python-py36.so /usr/lib/x86_64-linux-gnu/libboost_python3.so
 
 # fix the  qhull reentrant problem
 # RUN pip uninstall -y scipy
 
-#OpenBLAS with OpenMP
-RUN cd /opt && \
-    mkdir debsource && \
-    cd debsource && \
-    apt-get --no-install-recommends --no-install-suggests --yes build-dep libopenblas-base && \
-    apt-get install --no-install-recommends --no-install-suggests --yes build-essential fakeroot devscripts && \
-    apt-get source libopenblas-base && \
-    cd openblas-0.2.20+ds/ && \
-    sed -i "s/NO_WARMUP=1/NO_WARMUP=1 OPENMP=1/g" debian/rules && \
-    debchange -i "Compiling with OpenMP support" && \
-    debuild -us -uc -i -I && \
-    debi && \
-    cd /opt && \
-    rm -rf debsource
+RUN mkdir /opt/code
 
 #ZFP
 RUN cd /opt && \
@@ -57,15 +42,26 @@ RUN cd /opt && \
     mkdir lib && \
     make && \
     make shared && \
-    make -j 16 install
+    make -j $(nproc) install
 
 #BART
 RUN cd /opt && \
-    wget https://github.com/mrirecon/bart/archive/v0.3.01.tar.gz && \
-    tar -xzf v0.3.01.tar.gz && \
-    cd bart-0.3.01 && \
-    make -j 16 && \
-    ln -s /opt/bart-0.3.01/bart /usr/local/bin/bart 
+    wget https://github.com/mrirecon/bart/archive/v0.4.03.tar.gz && \
+    tar -xzf v0.4.03.tar.gz && \
+    cd bart-0.4.03 && \
+    make -j $(nproc) && \
+    ln -s /opt/bart-v0.4.03/bart /usr/local/bin/bart 
+
+# ceres
+RUN apt-get install --yes libgoogle-glog-dev libeigen3-dev libsuitesparse-dev
+RUN cd /opt && \
+    wget http://ceres-solver.org/ceres-solver-1.14.0.tar.gz && \
+    tar zxf ceres-solver-1.14.0.tar.gz && \
+    mkdir ceres-bin && \
+    cd ceres-bin && \
+    cmake ../ceres-solver-1.14.0 && \
+    make -j20 && \
+    make install
 
 #Set more environment variables in preparation for Gadgetron installation
 ENV GADGETRON_HOME=/usr/local \

@@ -8,9 +8,13 @@
 #include "gadgetronpython_export.h"
 #include "python_toolbox.h"
 
+#include "gadgetron_home.h" // for get_gadgetron_home
+#include "gadgetron_config.h"   // for GADGETRON_PYTHON_PATH
+
 #include <ismrmrd/ismrmrd.h>
 #include <ismrmrd/meta.h>
 #include <boost/python.hpp>
+#include <boost/filesystem.hpp>
 
 namespace Gadgetron {
 
@@ -50,20 +54,24 @@ namespace Gadgetron {
             register_converter<hoNDArray< std::complex<float> > >();
             register_converter<hoNDArray< float > >();
             register_converter<hoNDArray< unsigned short > >();
+            register_converter<hoNDArray< uint32_t > >();
             register_converter<hoNDArray< ISMRMRD::AcquisitionHeader > >();
             register_converter<hoNDArray< ISMRMRD::ImageHeader > >();
 
             // ensure boost can convert ISMRMRD headers automatically
             register_converter<ISMRMRD::ImageHeader>();
             register_converter<ISMRMRD::AcquisitionHeader>();
-
-            register_converter<IsmrmrdReconData>();
-            register_converter<IsmrmrdImageArray>();
+            register_converter<ISMRMRD::ISMRMRD_WaveformHeader>();
+            register_converter<ISMRMRD::Waveform>();
 
             register_converter< std::vector< std::complex<float> > >();
             register_converter< std::vector< float > >();
             register_converter< std::vector< unsigned short > >();
             register_converter< std::vector<ISMRMRD::MetaContainer> >();
+            register_converter< std::vector<ISMRMRD::Waveform> >();
+
+            register_converter<IsmrmrdReconData>();
+            register_converter<IsmrmrdImageArray>();
 
             std::string pypath = python_path.value();
             std::string pymod = python_module.value();
@@ -73,9 +81,13 @@ namespace Gadgetron {
             GDEBUG("Python Module          : %s\n", pymod.c_str());
             GDEBUG("Python Class           : %s\n", pyclass.c_str());
 
-            if (add_python_path(pypath) != GADGET_OK) {
-                GDEBUG("Failed to add paths in Gadget %s\n", this->module()->name());
-                return GADGET_FAIL;
+            boost::filesystem::path gadgetron_python_path = get_gadgetron_home() / std::string(GADGETRON_PYTHON_PATH);
+
+            for (std::string path : {pypath, gadgetron_python_path.generic_string()}) {
+                if (add_python_path(path) == GADGET_FAIL) {
+                    GDEBUG_STREAM("python_toolbox failed to add path: " << path << std::endl);
+                    return GADGET_FAIL;
+                }
             }
 
             std::string module_name = pymod;
@@ -235,7 +247,7 @@ namespace Gadgetron {
 
         template <typename H, typename D> int process(GadgetContainerMessage<H>* hmb,
             GadgetContainerMessage< hoNDArray< D > >* dmb,
-            GadgetContainerMessage< ISMRMRD::MetaContainer>* mmb)
+            GadgetContainerMessage< ISMRMRD::MetaContainer>* mmb = nullptr)
         {
             if (!dmb) {
                 GERROR("Received null pointer to data block");
@@ -290,6 +302,8 @@ namespace Gadgetron {
             }
             return GADGET_OK;
         }
+
+
 
         virtual int process(ACE_Message_Block* mb);
 

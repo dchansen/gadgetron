@@ -17,7 +17,7 @@ class BucketRecon(Gadget):
         self.header = ismrmrd.xsd.CreateFromDocument(conf)
         self.enc = self.header.encoding[0]
 
-    def process(self, recondata,*args):
+    def process(self, recondata):
 
         print(np.shape(recondata[0].data.data))
 
@@ -45,6 +45,7 @@ class BucketRecon(Gadget):
         #Return image to Gadgetron
         self.put_next(img_head,image)
         print("Slice ", img_head.slice)
+        print("----------------------------------------------")
         return 0    
         #print "Returning to Gadgetron"
  

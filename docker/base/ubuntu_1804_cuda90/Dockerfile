@@ -18,22 +18,27 @@ RUN apt-get install --no-install-recommends --no-install-suggests --yes linux-he
 
 RUN mkdir /opt/code
 RUN cd /opt/code
+
 RUN wget https://developer.nvidia.com/compute/cuda/9.0/Prod/local_installers/cuda-repo-ubuntu1704-9-0-local_9.0.176-1_amd64-deb
 RUN dpkg -i cuda-repo-ubuntu1704-9-0-local_9.0.176-1_amd64-deb
 RUN apt-key add /var/cuda-repo-9-0-local/7fa2af80.pub
-RUN apt-get update --quiet && apt-get install cuda --no-install-recommends --no-install-suggests --yes
+RUN apt-get update --quiet 
+RUN DEBIAN_FRONTEND=noninteractive apt-get install cuda --no-install-recommends --no-install-suggests --yes
 
 RUN wget https://developer.nvidia.com/compute/cuda/9.0/Prod/patches/1/cuda-repo-ubuntu1704-9-0-local-cublas-performance-update_1.0-1_amd64-deb
 RUN dpkg -i cuda-repo-ubuntu1704-9-0-local-cublas-performance-update_1.0-1_amd64-deb
-RUN apt-get update --quiet && apt-get upgrade --yes cuda
+RUN apt-get update --quiet 
+RUN DEBIAN_FRONTEND=noninteractive apt-get upgrade --yes cuda
 
 RUN wget https://developer.nvidia.com/compute/cuda/9.0/Prod/patches/2/cuda-repo-ubuntu1704-9-0-local-cublas-performance-update-2_1.0-1_amd64-deb
 RUN dpkg -i cuda-repo-ubuntu1704-9-0-local-cublas-performance-update-2_1.0-1_amd64-deb
-RUN apt-get update --quiet && apt-get upgrade --yes cuda
+RUN apt-get update --quiet 
+RUN DEBIAN_FRONTEND=noninteractive apt-get upgrade --yes cuda
 
 RUN wget https://developer.nvidia.com/compute/cuda/9.0/Prod/patches/3/cuda-repo-ubuntu1704-9-0-local-cublas-performance-update-3_1.0-1_amd64-deb
 RUN dpkg -i cuda-repo-ubuntu1704-9-0-local-cublas-performance-update-3_1.0-1_amd64-deb
-RUN apt-get update --quiet && apt-get upgrade --yes cuda
+RUN apt-get update --quiet 
+RUN DEBIAN_FRONTEND=noninteractive apt-get upgrade --yes cuda
 
 COPY /docker/cudnn-9.0-linux-x64-v7.tgz /opt/code/
 
@@ -97,14 +102,14 @@ RUN cd /opt && \
     mkdir lib && \
     make && \
     make shared && \
-    make -j 16 install
+    make -j $(nproc) install
 
 #BART
 RUN cd /opt && \
     wget https://github.com/mrirecon/bart/archive/v0.4.03.tar.gz && \
     tar -xzf v0.4.03.tar.gz && \
     cd bart-0.4.03 && \
-    make -j 16 && \
+    make -j $(nproc) && \
     ln -s /opt/bart-v0.4.03/bart /usr/local/bin/bart 
 
 # ceres

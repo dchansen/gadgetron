@@ -77,7 +77,10 @@ add_library(gadgetron_gadgetbase SHARED
   Gadget.cpp
   GadgetStreamController.h
   GadgetStreamController.cpp
+  gadgetron_xml.h
   gadgetron_xml.cpp
+  gadgetron_home.h
+  gadgetron_home.cpp
   pugixml.cpp  
   GadgetStreamInterface.h 
   GadgetStreamInterface.cpp 
@@ -111,11 +114,12 @@ install(FILES
   GadgetContainerMessage.h
   GadgetMessageInterface.h
   GadgetronExport.h
-  gadgetron_paths.h
+  gadgetron_home.h
   gadgetron_xml.h
   GadgetServerAcceptor.h
   GadgetStreamController.h
   GadgetStreamInterface.h
+  gadgetron_home.h
   ${CMAKE_CURRENT_BINARY_DIR}/gadgetron_config.h
   DESTINATION ${GADGETRON_INSTALL_INCLUDE_PATH} COMPONENT main) 
 

@@ -21,8 +21,9 @@ FROM ${IMG_IN}
 
 RUN apt-get remove --yes --autoremove emacs build-essential x11-common libgtk* make cmake
 RUN apt-get --yes remove *-dev
+#RUN add-apt-repository ppa:lkoppel/ceres
 RUN apt-get update
-RUN apt-get -y install libplplot-dev
+RUN apt-get install --no-install-recommends --no-install-suggests --yes libplplot-dev
 RUN rm -rf /opt/*.tar.gz
 RUN rm -rf /usr/local/cuda/bin
 RUN rm -rf /usr/local/cuda/doc
@@ -48,7 +49,7 @@ RUN rm -rf /opt/intel/mkl/lib/intel64/*.a
 RUN rm -rf /opt/intel/mkl/lib/intel64/lib*ilp*.so
 EOF
 
-docker build -t tmpstripimage ${DOCKERFOLDER}
+docker build --network=host -t tmpstripimage ${DOCKERFOLDER}
 docker export $(docker create --name tmpstripcontainer tmpstripimage) > ${DOCKERFOLDER}/gadgetron_strip_fs.tar
 docker rm tmpstripcontainer
 docker rmi tmpstripimage

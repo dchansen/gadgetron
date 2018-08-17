@@ -61,7 +61,7 @@ int GadgetStreamController::open (void)
 
   this->writer_task_.open();
 
-  return this->activate( THR_NEW_LWP | THR_JOINABLE, 1);
+  return this->activate( THR_NEW_LWP | THR_DETACHED, 1);
 
 }
 
@@ -197,11 +197,7 @@ int GadgetStreamController::handle_close (ACE_HANDLE, ACE_Reactor_Mask mask)
 
 int GadgetStreamController::configure_from_file(std::string filename)
 {
-  boost::filesystem::path home(gadgetron_home_);
-  boost::filesystem::path config_path(GADGETRON_CONFIG_PATH);
-  boost::filesystem::path config_file(filename);
-
-  boost::filesystem::path full_path = home / config_path / config_file;
+  boost::filesystem::path full_path = gadgetron_home_ / GADGETRON_CONFIG_PATH / filename;
 
   GINFO("Running configuration: %s\n", full_path.c_str());
 

@@ -55,6 +55,15 @@ namespace Gadgetron {
                                                                                             << num_encoding_spaces_);
         }
 
+        GadgetContainerMessage< std::vector<ISMRMRD::Waveform> > * wav = AsContainerMessage< std::vector<ISMRMRD::Waveform>  >(m1->cont());
+        if (wav)
+        {
+            if (verbose.value())
+            {
+                GDEBUG_STREAM("Incoming recon_bit with " << wav->getObjectPtr()->size() << " wave form samples ");
+            }
+        }
+
         // for every encoding space
         for (size_t e = 0; e < recon_bit_->rbit_.size(); e++) {
             std::stringstream os;
@@ -179,6 +188,11 @@ namespace Gadgetron {
                 if (perform_timing.value()) { gt_timer_.stop(); }
 
                 // ---------------------------------------------------------------
+                // pass down waveform
+                if(wav) recon_obj_[e].recon_res_.waveform_ = *wav->getObjectPtr();
+                recon_obj_[e].recon_res_.acq_headers_ = recon_bit_->rbit_[e].data_.headers_;
+
+                // ---------------------------------------------------------------
 
                 if (!debug_folder_full_path_.empty()) {
                     this->gt_exporter_.export_array_complex(recon_obj_[e].recon_res_.data_,
@@ -234,6 +248,7 @@ namespace Gadgetron {
                         res.data_ = snr_map;
                         res.headers_ = recon_obj_[e].recon_res_.headers_;
                         res.meta_ = recon_obj_[e].recon_res_.meta_;
+                        res.acq_headers_ = recon_bit_->rbit_[e].data_.headers_;
 
                         this->send_out_image_array(recon_bit_->rbit_[e], res, e,
                                                    image_series.value() + 100 * ((int) e + 3), GADGETRON_IMAGE_SNR_MAP);
