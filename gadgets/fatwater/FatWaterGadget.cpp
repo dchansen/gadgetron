@@ -107,7 +107,6 @@ namespace Gadgetron {
         auto& r2star_map = output.r2star_map;
 
         if (sample_time_us > 0){
-
             correct_frequency_shift(wfimages,parameters);
         }
 
@@ -125,8 +124,6 @@ namespace Gadgetron {
             m1->release();
             return GADGET_FAIL;
         }
-
-
 
 
         GadgetContainerMessage<IsmrmrdImageArray> *m2 = FatWaterImageArray(parameters, std::move(wfimages),

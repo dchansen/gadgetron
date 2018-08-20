@@ -1,9 +1,10 @@
 
 
 //
+
+#include "optimization_transfer.h"
 #include "hoNDArray.h"
 #include <boost/math/constants/constants.hpp>
-#include "fatwater.h"
 #include "hoPartialDerivativeOperator.h"
 
 //Implements a nonlinear conjugate gradient algorithm for field map estimation, based on
@@ -94,7 +95,7 @@ namespace Gadgetron {
                     for (int dy = 0; dy < measurement.get_size(1); dy++) {
                         for (int dx = 0; dx < measurement.get_size(0); dx++) {
                             for (int dt = 0; dt < measurement.get_size(3); dt++) {
-                                result(dt, dx, dy, dz) = std::arg(measurement(dx, dy, dz, dt);
+                                result(dt, dx, dy, dz) = std::arg(measurement(dx, dy, dz, dt));
                             }
                         }
                     }
@@ -156,7 +157,9 @@ namespace Gadgetron {
 
         }
 
-        void field_map_ncg(hoNDArray<float> &field_map_initial, const hoNDArray<float> &r2star_map,
+
+        }
+        void field_map_ncg(hoNDArray<float> &field_map, const hoNDArray<float> &r2star_map,
                                         const hoNDArray<std::complex<float>> &input_data,
                                         const Parameters &parameters, float regularization_strength) {
 
@@ -170,8 +173,6 @@ namespace Gadgetron {
                 if (input_data.get_size(2) > 1)
                     finite_difference.push_back(hoPartialDerivativeOperator<float,3>(2));
 
-
-                hoNDArray<float> field_map = field_map_initial;
                 hoNDArray<float> model_gradient = model.gradient(field_map);
                 hoNDArray<float> regularization_gradient(field_map.get_dimensions());
                 regularization_gradient.fill(0);
@@ -185,30 +186,48 @@ namespace Gadgetron {
                 axpy(regularization_strength,regularization_gradient,model_gradient,step_direction);
 
 
-                regularization_gradient.fill(0);
+                hoNDArray<float> regularization_gradient_update(field_map.get_dimensions());
+                regularization_gradient_update.fill(0);
                  for (auto& op : finite_difference){
-                    op.mult_MH_M(&step_direction,&regularization_gradient,true);
+                    op.mult_MH_M(&step_direction,&regularization_gradient_update,true);
                 }
 
-                float alpha = step_size(model, field_map,step_direction,model_gradient,regularization_gradient,regularization_strength);
+                float alpha = step_size(model, field_map,step_direction,model_gradient,regularization_gradient_update,regularization_strength);
 
-                 regularization_gradient *= alpha;
+                 axpy(alpha,regularization_gradient_update,regularization_gradient,regularization_gradient);
 
                  axpy(alpha,step_direction,field_map,field_map);
 
+
+                 auto previous_gradient = step_direction;
+
                 for (int i = 0; i < 10; i++){
+                    model_gradient = model.gradient(field_map);
+
+                    regularization_gradient *= regularization_strength;
+                    auto combined_gradient = model_gradient;
+                    axpy(regularization_strength,regularization_gradient,combined_gradient,combined_gradient);
+                    auto denom = dot(&previous_gradient,&previous_gradient);
+                    previous_gradient -= combined_gradient;
+                    auto update = dot(&previous_gradient,&combined_gradient)/denom;
+                    previous_gradient = combined_gradient;
+
+                    step_direction *= update;
+                    step_direction += combined_gradient;
+
+                    regularization_gradient_update.fill(0);
+                    for (auto& op : finite_difference){
+                        op.mult_MH_M(&step_direction,&regularization_gradient_update,true);
+                    }
+
+                    float alpha = step_size(model, field_map,step_direction,model_gradient,regularization_gradient_update,regularization_strength);
+
+                    axpy(alpha,regularization_gradient_update,regularization_gradient,regularization_gradient);
+                    axpy(alpha,step_direction,field_map,field_map);
 
                 }
-
-
-
-
-
-
-
         };
 
-        }
 
 
     }
