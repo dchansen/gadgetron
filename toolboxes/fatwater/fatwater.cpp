@@ -38,6 +38,7 @@
 #endif // min
 
 #include <algorithm>
+#include "optimization_transfer.h"
 
 using namespace boost;
 
@@ -616,11 +617,12 @@ namespace Gadgetron {
             auto species = separate_species(data, phi, r2star_map, field_map, parameters);
 
             if (config.do_gradient_descent) {
-                sqrt_inplace(&lambda_map);
-                lambda_map /= dF;
-
+//                sqrt_inplace(&lambda_map);
+                lambda_map /= dF*dF;
+                field_map_ncg(field_map,r2star_map,data,parameters,mean(&lambda_map));
 //                fat_water_fitting(field_map, r2star_map, species, data, lambda_map, parameters);
-                field_map_fitting(field_map,r2star_map,data,lambda_map,parameters);
+//                field_map_fitting(field_map,r2star_map,data,lambda_map,parameters);
+
                 species = separate_species(data, phi, r2star_map, field_map, parameters);
             }
 

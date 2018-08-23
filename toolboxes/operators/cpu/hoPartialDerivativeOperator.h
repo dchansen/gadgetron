@@ -37,9 +37,7 @@ namespace Gadgetron{
                   throw std::runtime_error( "hoPartialDerivativeOperator::compute_partial_derivative : array dimensions mismatch.");
               }
 
-              if( in->get_number_of_dimensions() != D || out->get_number_of_dimensions() != D ){
-                  throw std::runtime_error("hoPartialDerivativeOperator::compute_partial_derivative : dimensionality mismatch");
-              }
+
 
               typename int64d<D>::Type dims = vector_td<long long,D>( from_std_vector<size_t,D>( *(in->get_dimensions().get()) ));
 
@@ -73,9 +71,7 @@ namespace Gadgetron{
                   throw std::runtime_error( "hoPartialDerivativeOperator::compute_second_order_partial_derivative : array dimensions mismatch.");
               }
 
-              if( in->get_number_of_dimensions() != D || out->get_number_of_dimensions() != D ){
-                  throw std::runtime_error( "hoPartialDerivativeOperator::compute_second_order_partial_derivative : dimensionality mismatch");
-              }
+
 
               typename int64d<D>::Type dims = vector_td<long long,D>( from_std_vector<size_t,D>( *(in->get_dimensions().get()) ));
 

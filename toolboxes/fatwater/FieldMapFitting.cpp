@@ -20,9 +20,9 @@ namespace Gadgetron {
 
                     std::vector<complext<double>> data = signal;
 
-                    for (int i = 0; i < data.size(); i++) {
-                        data[i] *= std::exp(r2star * TEs[i]);
-                    }
+//                    for (int i = 0; i < data.size(); i++) {
+//                        data[i] *= std::exp(r2star * TEs[i]);
+//                    }
 
                     omega = parameters.gyromagnetic_ratio_Mhz*PI;
 
@@ -44,7 +44,7 @@ namespace Gadgetron {
                 bool operator()(const T *const fm, T *residual) const {
                     for (int i = 0; i < N; i++) {
                         for (int j = 0; j < N; j++) {
-                            residual[j + i * N] = sqrt(weights[j + i * N] * (1.0 - cos(*fm*omega * T(TEs_[i] - TEs_[j]) +
+                            residual[j + i * N] = sqrt(weights[j + i * N] * (1.0 - cos(*fm* T(TEs_[i] - TEs_[j]) +
                                                                                        angles[i] + angles[j])));
                         }
                     }
@@ -80,7 +80,7 @@ namespace Gadgetron {
                 std::vector<float> TEs_repeated((S) * N);
 
                 auto &TEs = parameters.echo_times_s;
-                auto &field_strength = parameters.field_strength_T;
+//                auto &field_strength = parameters.field_strength_T;
 
                 for (int k3 = 0; k3 < S; k3++) {
                     for (int k4 = 0; k4 < N; k4++) {

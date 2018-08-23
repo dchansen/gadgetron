@@ -25,10 +25,35 @@ namespace Gadgetron {
         public:
 
 
-            FieldMapModel(const hoNDArray<std::complex<float>> &measurements, const hoNDArray<float>& r2star) {
+            FieldMapModel(const hoNDArray<std::complex<float>> &measurements, const hoNDArray<float>& r2star, const std::vector<float>& times) {
 
                 angles = calculate_angles(measurements);
                 weights = calculate_weights(measurements,r2star);
+                this->times = times;
+
+            }
+
+            float magnitude(const hoNDArray<float> &field_map) const {
+
+                float total = 0;
+
+#pragma omp parallel for collapse(3) reduction (+ : total)
+                  for (int dz = 0; dz < field_map.get_size(2); dz++) {
+                      for (int dy = 0; dy < field_map.get_size(1); dy++) {
+                          for (int dx = 0; dx < field_map.get_size(0); dx++) {
+                              for (int t1 = 0; t1 < times.size(); t1++) {
+                                  for (int t2 = 0; t2 < times.size(); t2++) {
+                                      total += magnitude_internal(field_map(dx, dy, dz), times[t1], times[t2],
+                                                                  angles(t1, dx, dy, dz),
+                                                                  angles(t2, dx, dy, dz),
+                                                                  weights(t1, t2, dx, dy, dz));
+                                  }
+
+                              }
+                          }
+                      }
+                  }
+                  return total;
 
             }
 
@@ -66,7 +91,7 @@ namespace Gadgetron {
                       for (int dy = 0; dy < step_direction.get_size(1); dy++) {
                           for (int dx = 0; dx < step_direction.get_size(0); dx++) {
                               for (int t1 = 0; t1 < times.size(); t1++) {
-                                  for (int t2 = 0; t2 < times.size(); t2++) {
+                                  for (int t2 = t1+1; t2 < times.size(); t2++) {
                                       total += surrogate_d_internal(field_map(dx, dy, dz), times[t1], times[t2],
                                                                     angles(t1, dx, dy, dz),
                                                                     angles(t2, dx, dy, dz),
@@ -78,7 +103,7 @@ namespace Gadgetron {
                           }
                       }
                   }
-                  return total;
+                  return 2*total;
 
             }
 
@@ -111,17 +136,18 @@ namespace Gadgetron {
                 for (int dz = 0; dz < measurement.get_size(2); dz++) {
                     for (int dy = 0; dy < measurement.get_size(1); dy++) {
                         for (int dx = 0; dx < measurement.get_size(0); dx++) {
-                            auto data_norm = 0;
+                            float data_norm = 0;
 
                             for (int dt = 0; dt < measurement.get_size(3); dt++)
-                                data_norm += norm(measurement(dx, dy, dz, dt)*r2star(dx,dy,dz));
+                                data_norm += std::norm(measurement(dx, dy, dz, dt));
 
                             for (int dt2 = 0; dt2 < measurement.get_size(3); dt2++) {
-                                auto val2 = measurement(dx, dy, dz, dt2)*r2star(dx,dy,dz);
-                                for (int dt1 = 0; dt1 < measurement.get_size(3); dt1++) {
-                                    auto val1 = measurement(dx, dy, dz, dt1)*r2star(dx,dy,dz);
+                                auto val2 = measurement(dx, dy, dz, dt2);
+                                for (int dt1 = 0;  dt1 < measurement.get_size(3); dt1++) {
+                                    auto val1 = measurement(dx, dy, dz, dt1);
 
-                                    result(dt1, dt2, dx, dy, dz) = norm(val1 * val2) / data_norm;
+                                    result(dt1, dt2, dx, dy, dz) = std::norm(val1 * val2) / data_norm;
+                                    assert(result(dt1,dt2,dx,dy,dz) >= 0);
                                 }
                             }
                         }
@@ -130,16 +156,28 @@ namespace Gadgetron {
                 return result;
             }
 
-            static float
-            gradient_internal(float field_value, float time1, float time2, float angle1, float angle2, float weight) {
-                return weight * (time1 - time2) * std::sin(angle1 - angle2 + field_value * (time1 - time2));
+            float
+            gradient_internal(float field_value, float time1, float time2, float angle1, float angle2, float weight) const {
+                return weight * (time1 - time2) * std::sin(angle1 - angle2 + field_value* (time1 - time2));
             }
 
-            static float
-            surrogate_d_internal(float field_value, float time1, float time2, float angle1, float angle2, float weight){
-                float s = fmod(field_value*(time1-time2)+angle1-angle2, PI);
+            float
+            surrogate_d_internal(float field_value, float time1, float time2, float angle1, float angle2, float weight) const {
+                float s = remainder(field_value*(time1-time2)+angle1-angle2, PI);
+                float sins;
+                if (std::abs(s) < 1e-6) sins = 1;
+                else sins = std::sin(s)/s;
                 float time_diff = time1-time2;
-                return weight*time_diff*time_diff*std::sin(s)/s;
+                float result = weight*time_diff*time_diff*sins;
+                assert(!std::isnan(result));
+                return result;
+
+            }
+
+            float magnitude_internal(float field_value, float time1, float time2, float angle1, float angle2,
+                                            float weight) const {
+                assert(weight >= 0);
+                return weight*(1.0f-std::cos(field_value*(time1-time2)+angle1-angle2));
 
             }
 
@@ -150,11 +188,39 @@ namespace Gadgetron {
         };
 
 
-        float step_size(const FieldMapModel& model, const hoNDArray<float>& field_map,const hoNDArray<float>& step_direction, const hoNDArray<float>& model_gradient,
+        float make_step(const FieldMapModel& model, hoNDArray<float>& field_map,const hoNDArray<float>& step_direction, hoNDArray<float>& model_gradient,
                 const hoNDArray<float>& regularization_step_gradient, float regularization_strength){
 
-            return sum(&model_gradient)/(model.surrogate_d(field_map,step_direction)+regularization_strength*dot(&regularization_step_gradient,&step_direction));
 
+            float alpha = 0;
+
+            float reg = regularization_strength * dot(&regularization_step_gradient, &step_direction);
+            for (int i = 0; i < 5; i++) {
+                model_gradient = model.gradient(field_map);
+                float surr = model.surrogate_d(field_map, step_direction);
+                assert(!std::isnan(surr));
+
+                assert(!std::isinf(surr));
+                float step = -sum(&model_gradient)/(surr+reg);
+
+                assert(!std::isinf(step));
+                assert(!std::isnan(step));
+                axpy(step,step_direction,field_map,field_map);
+                alpha += step;
+
+            }
+            std::cout << "Alpha " << alpha << std::endl;
+            return alpha;
+        }
+
+
+        hoNDArray<float> calc_regularization_gradient(std::vector<hoPartialDerivativeOperator<float,3>>& finite_difference, hoNDArray<float>& field_map){
+            hoNDArray<float> result(field_map.get_dimensions());
+            result.fill(0);
+            for (auto& op : finite_difference)
+                op.mult_MH_M(&field_map,&result,true);
+
+            return result;
         }
 
 
@@ -163,9 +229,18 @@ namespace Gadgetron {
                                         const hoNDArray<std::complex<float>> &input_data,
                                         const Parameters &parameters, float regularization_strength) {
 
+                const size_t X = input_data.get_size(0);
+                const size_t Y = input_data.get_size(1);
+                const size_t Z = input_data.get_size(2);
+                const size_t N = input_data.get_size(4);
+                if (N != 1)
+                    throw std::runtime_error("Unsupported dimensions");
+                const size_t S = input_data.get_size(5);
+
+                hoNDArray<std::complex<float>> input_data_view({X,Y,Z,S},input_data.get_data_ptr());
 
 
-                const auto model = FieldMapModel(input_data,r2star_map);
+                const auto model = FieldMapModel(input_data_view,r2star_map,parameters.echo_times_s);
 
                 std::vector<hoPartialDerivativeOperator<float,3>> finite_difference =
                         {hoPartialDerivativeOperator<float,3>(0),hoPartialDerivativeOperator<float,3>(1)};
@@ -173,57 +248,55 @@ namespace Gadgetron {
                 if (input_data.get_size(2) > 1)
                     finite_difference.push_back(hoPartialDerivativeOperator<float,3>(2));
 
-                hoNDArray<float> model_gradient = model.gradient(field_map);
-                hoNDArray<float> regularization_gradient(field_map.get_dimensions());
-                regularization_gradient.fill(0);
-                for (auto& op : finite_difference){
-                    op.mult_MH_M(&field_map,&regularization_gradient,true);
+                for (auto& op: finite_difference) {
+                    op.set_domain_dimensions(field_map.get_dimensions().get());
+                    op.set_codomain_dimensions(field_map.get_dimensions().get());
                 }
-                regularization_gradient *= regularization_strength;
+
+                hoNDArray<float> model_gradient = model.gradient(field_map);
+                hoNDArray<float> regularization_gradient = calc_regularization_gradient(finite_difference,field_map);
 
                 hoNDArray<float> step_direction(model_gradient.get_dimensions());
+                step_direction.fill(0);
 
                 axpy(regularization_strength,regularization_gradient,model_gradient,step_direction);
 
+                hoNDArray<float> regularization_gradient_update = calc_regularization_gradient(finite_difference,step_direction);
 
-                hoNDArray<float> regularization_gradient_update(field_map.get_dimensions());
-                regularization_gradient_update.fill(0);
-                 for (auto& op : finite_difference){
-                    op.mult_MH_M(&step_direction,&regularization_gradient_update,true);
-                }
+                float alpha = make_step(model, field_map,step_direction,model_gradient,regularization_gradient_update,regularization_strength);
 
-                float alpha = step_size(model, field_map,step_direction,model_gradient,regularization_gradient_update,regularization_strength);
 
                  axpy(alpha,regularization_gradient_update,regularization_gradient,regularization_gradient);
 
-                 axpy(alpha,step_direction,field_map,field_map);
-
-
                  auto previous_gradient = step_direction;
 
-                for (int i = 0; i < 10; i++){
-                    model_gradient = model.gradient(field_map);
+                for (int i = 0; i < 50; i++){
 
-                    regularization_gradient *= regularization_strength;
                     auto combined_gradient = model_gradient;
                     axpy(regularization_strength,regularization_gradient,combined_gradient,combined_gradient);
                     auto denom = dot(&previous_gradient,&previous_gradient);
                     previous_gradient -= combined_gradient;
-                    auto update = dot(&previous_gradient,&combined_gradient)/denom;
+                    auto update = -dot(&previous_gradient,&combined_gradient)/denom;
                     previous_gradient = combined_gradient;
 
+                    update = std::max(update,0.0f);
                     step_direction *= update;
                     step_direction += combined_gradient;
 
-                    regularization_gradient_update.fill(0);
-                    for (auto& op : finite_difference){
-                        op.mult_MH_M(&step_direction,&regularization_gradient_update,true);
-                    }
+                    regularization_gradient_update = calc_regularization_gradient(finite_difference,step_direction);
 
-                    float alpha = step_size(model, field_map,step_direction,model_gradient,regularization_gradient_update,regularization_strength);
+                    float alpha = make_step(model, field_map,step_direction,model_gradient,regularization_gradient_update,regularization_strength);
 
                     axpy(alpha,regularization_gradient_update,regularization_gradient,regularization_gradient);
-                    axpy(alpha,step_direction,field_map,field_map);
+
+
+                    float value = model.magnitude(field_map);
+                    std::cout << "Model cost " << value << std::endl;
+                    for (auto& op : finite_difference){
+                        value += regularization_strength*op.magnitude(&field_map);
+                    }
+
+                    std::cout << "Cost " << value << " alpha " << alpha << std::endl;
 
                 }
         };
