@@ -28,3 +28,8 @@ tags
 test/integration/*.xprot
 test/integration/*.xml
 .atom-build.json
+cmake-build-*
+CMakeFiles
+*.orig
+.idea
+

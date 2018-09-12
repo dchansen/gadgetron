@@ -3,16 +3,14 @@
 # Add steps that build, run tests, deploy, and more:
 # https://aka.ms/yaml
 
-
 resources:
   containers:
-  - container: gadgetron_ubuntu
-    image: gadgetron/ubuntu_1604_base
+  - container: my_container
+    image: gadgetron/ubuntu_1604_base 
 
 pool:
-  container: gadgetron_ubuntu
+  container: my_container
   vmImage: 'Ubuntu 16.04'
-
 steps:
 - script: |
     echo $(pwd)
