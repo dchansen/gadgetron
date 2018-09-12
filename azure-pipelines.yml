@@ -9,6 +9,7 @@ resources:
     image: gadgetron/ubuntu_1604_base 
 
 pool:
+  name: Hosted Ubuntu 1604
   container: my_container
   vmImage: 'Ubuntu 16.04'
 steps:
