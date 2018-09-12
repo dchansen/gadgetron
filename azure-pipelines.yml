@@ -1,0 +1,36 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+
+resources:
+  containers:
+  - container: gadgetron_ubuntu
+    image: gadgetron/ubuntu_1604_base
+
+pool:
+  container: gadgetron_ubuntu
+  vmImage: 'Ubuntu 16.04'
+
+steps:
+- script: |
+    mkdir /opt/code
+    cd /opt/code
+    git clone https://github.com/isrmrmd/ismrmrd.git
+    cd ismrmrd
+    mkdir build
+    cmake ..
+    make -j
+    make install
+  displayName: 'Build ISMRMRD'
+
+
+- script: |
+  cd '$(projectRoot)'
+  mkdir build
+  cd build
+  cmake ..
+  make -j
+
+  displayName: 'Make Gadgetron'
