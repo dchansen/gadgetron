@@ -15,6 +15,7 @@ pool:
 
 steps:
 - script: |
+    echo $(pwd)
     mkdir /opt/code
     cd /opt/code
     git clone https://github.com/isrmrmd/ismrmrd.git
@@ -27,7 +28,7 @@ steps:
 
 
 - script: |
-  cd '$(projectRoot)'
+  echo $(pwd)
   mkdir build
   cd build
   cmake ..
