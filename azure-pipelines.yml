@@ -33,6 +33,7 @@ jobs:
       make -j
       make install
   - script: |
+      export ISMRMRD_HOME=~/opt
       mkdir build
       cd build 
       cmake .. -DCMAKE_PREFIX_PATH=~/opt:/usr/local:/usr 
