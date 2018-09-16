@@ -7,14 +7,14 @@ resources:
     - container: ubuntu
       image: gadgetron/ubuntu1604_base  
 
-pool:
-  vmImage: 'Ubuntu 16.04'
-container: ubuntu
-steps:
-- script: |
-    mkdir build
-    cd build
-    ccmake ..
-    make -j
-    make install
-
+- job: Linux
+  pool:
+    vmImage: 'ubuntu-16.04'
+  container: ubuntu
+  steps:
+  - script: |
+      mkdir build
+      cd build 
+      cmake .. 
+      cmake --build . --config Release
+      cmake --install . --config Release
