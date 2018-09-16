@@ -5,7 +5,7 @@
 resources:
   containers:
     - container: ubuntu
-      image: gadgetron/ubuntu1604_base  
+      image: gadgetron/ubuntu_1604_base  
 
 jobs:
 - job: Linux
@@ -13,6 +13,25 @@ jobs:
     vmImage: 'ubuntu-16.04'
   container: ubuntu
   steps:
+  - script: |
+      mkdir /opt/code
+      cd /opt/code
+      git clone https://github.com/ismrmrd/ismrmrd.git
+      cd ismrmrd
+      mkdir build
+      cd build
+      cmake ..
+      make -j
+      make install
+  - script: |
+      cd /opt/code
+      git clone https://github.com/ismrmrd/siemens_to_ismrmrd.git
+      cd siemens_to_ismrmrd
+      mkdir build
+      cd build
+      cmake ..
+      make -j
+      make install
   - script: |
       mkdir build
       cd build 
