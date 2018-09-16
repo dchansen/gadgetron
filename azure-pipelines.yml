@@ -14,6 +14,7 @@ jobs:
   container: ubuntu
   steps:
   - script: |
+      sudo su
       mkdir /opt/code
       cd /opt/code
       git clone https://github.com/ismrmrd/ismrmrd.git
@@ -24,6 +25,7 @@ jobs:
       make -j
       make install
   - script: |
+      sudo su
       cd /opt/code
       git clone https://github.com/ismrmrd/siemens_to_ismrmrd.git
       cd siemens_to_ismrmrd
