@@ -36,6 +36,6 @@ jobs:
       export ISMRMRD_HOME=~/opt
       mkdir build
       cd build 
-      cmake .. -DCMAKE_PREFIX_PATH=~/opt:/usr/local:/usr 
+      cmake .. -DCMAKE_PREFIX_PATH=~/opt:/usr/local:/usr -DUSE_PYTHON3=True
       cmake --build . --config Release
       cmake --install . --config Release
