@@ -1,0 +1,20 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+resources:
+  containers:
+    - container: ubuntu
+      image: gadgetron/ubuntu1604_base  
+
+pool:
+  vmImage: 'Ubuntu 16.04'
+container: ubuntu
+steps:
+- script: |
+    mkdir build
+    cd build
+    ccmake ..
+    make -j
+    make install
+
