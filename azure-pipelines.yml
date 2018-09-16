@@ -14,29 +14,27 @@ jobs:
   container: ubuntu
   steps:
   - script: |
-      sudo su
-      mkdir /opt/code
-      cd /opt/code
+      mkdir ~/opt/code
+      cd ~/opt/code
       git clone https://github.com/ismrmrd/ismrmrd.git
       cd ismrmrd
       mkdir build
       cd build
-      cmake ..
+      cmake .. -DCMAKE_INSTALL_PREFIX=~/opt
       make -j
       make install
   - script: |
-      sudo su
-      cd /opt/code
+      cd ~/opt/code
       git clone https://github.com/ismrmrd/siemens_to_ismrmrd.git
       cd siemens_to_ismrmrd
       mkdir build
       cd build
-      cmake ..
+      cmake .. -DCMAKE_INSTALL_PREFIX=~/opt
       make -j
       make install
   - script: |
       mkdir build
       cd build 
-      cmake .. 
+      cmake .. DCMAKE_PREFIX_PATH=~/opt:/usr/local:/usr 
       cmake --build . --config Release
       cmake --install . --config Release
