@@ -9,6 +9,7 @@ resources:
 
 jobs:
 - job: Linux
+  timeoutInMinutes: 360
   pool:
     vmImage: 'ubuntu-16.04'
   container: ubuntu
