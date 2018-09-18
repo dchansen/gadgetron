@@ -5,7 +5,7 @@
 resources:
   containers:
     - container: ubuntu
-      image: gadgetron/ubuntu_1604_base  
+      image: gadgetron/ubuntu_1604_cuda92_cudnn7_base
 
 jobs:
 - job: Linux
@@ -42,7 +42,4 @@ jobs:
       make install
       export GADGETRON_HOME=~/opt
       cp ~/opt/share/gadgetron/config/gadgetron.xml.example ~/opt/share/gadgetron/config/gadgetron.xml
-  - script: |
-      cd test/integration
-      python3 get_data.py
-      python3 run_tests.py cases/*
+
