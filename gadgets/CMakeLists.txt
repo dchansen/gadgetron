@@ -30,24 +30,22 @@ if (ARMADILLO_FOUND)
   add_subdirectory(cmr)
 endif()
 
-find_program(BARTCMD bart)
-if (BARTCMD)
-	add_subdirectory(bart)
+
+
+option(USE_BART "Build support for BART using BartGadget" OFF)
+if(USE_BART)
+  add_subdirectory(bart)
 endif()
 
+
 if (ARMADILLO_FOUND)
-    add_subdirectory(epi)
+  add_subdirectory(epi)
+  add_subdirectory(fatwater)
 elseif (ARMADILLO_FOUND)
-    message("Armadillo not found, NOT compiling EPI Gadgets")
+  message("Armadillo not found, NOT compiling EPI or Fat/water Gadgets")
 endif ()
 
 
-if (CERES_FOUND)
-  message("Ceres is at ${CERES_INCLUDE_DIR}")
-  add_subdirectory(fatwater)
-elseif(CERES_FOUND)
-  message("Ceres not found, skipping fatwater gadgets")
-endif()
 if (CUDA_FOUND)
   message("Cuda found, compiling gpu accelerated gadgets")
   add_subdirectory(pmri)
