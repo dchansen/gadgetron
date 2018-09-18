@@ -44,5 +44,5 @@ jobs:
       cp ~/opt/share/gadgetron/config/gadgetron.xml.example ~/opt/share/gadgetron/config/gadgetron.xml
   - script: |
       cd test/integration
-      python get_data.py
+      python3 get_data.py
       python3 run_tests.py cases/*
