@@ -37,8 +37,8 @@ jobs:
       mkdir build
       cd build 
       cmake .. -DCMAKE_PREFIX_PATH=~/opt:/usr/local:/usr -DBUILD_WITH_PYTHON3=ON -DCMAKE_INSTALL_PREFIX=~/opt
-      cmake --build . --config Release
-      cmake --install . --config Release
+      make -j
+      make install
       export GADGETRON_HOME=~/opt
       cp ~/opt/share/gadgetron/config/gadgetron.xml.example ~/opt/share/gadgetron/config/gadgetron.xml
   - script: |
