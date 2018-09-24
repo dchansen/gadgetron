@@ -587,7 +587,7 @@ namespace Gadgetron {
    * The padding operations keep the center of array unchanged, e.g. the center is always N/2
    */
   template<class T, unsigned int D> void
-  pad(const typename uint64d<D>::Type& size, hoNDArray<T> *in, hoNDArray<T>* out, bool preset_out_with_val = true, T val = T(0))
+  pad(const typename uint64d<D>::Type& size, const hoNDArray<T> *in, hoNDArray<T>* out, bool preset_out_with_val = true, T val = T(0))
   {
       if (in == 0x0){
           throw std::runtime_error("pad: 0x0 array provided");;
@@ -619,7 +619,7 @@ namespace Gadgetron {
           return;
       }
 
-      T *in_ptr = in->get_data_ptr();
+      const T *in_ptr = in->get_data_ptr();
       T *out_ptr = out->get_data_ptr();
 
       if (preset_out_with_val){
@@ -640,7 +640,7 @@ namespace Gadgetron {
       typename uint64d<D>::Type matrix_size_in = from_std_vector<size_t, D>(*in->get_dimensions());
       typename uint64d<D>::Type matrix_size_out = from_std_vector<size_t, D>(*out->get_dimensions());
 
-      if (weak_greater(matrix_size_in, matrix_size_out)){
+      if (weak_greater_equal(matrix_size_in, matrix_size_out)){
           throw std::runtime_error("pad: size mismatch, cannot expand");
       }
 
@@ -686,7 +686,7 @@ namespace Gadgetron {
   }
 
   template<class T> void
-  pad(size_t x, size_t y, size_t z, hoNDArray<T> *in, hoNDArray<T>* out, bool preset_out_with_val = true, T val = T(0))
+  pad(size_t x, size_t y, size_t z, const hoNDArray<T> *in, hoNDArray<T>* out, bool preset_out_with_val = true, T val = T(0))
   {
       typename uint64d<3>::Type padSize(x, y, z);
       pad<T, 3>(padSize, in, out, preset_out_with_val, val);
@@ -699,7 +699,7 @@ namespace Gadgetron {
   * @returns New array of the specified size, containing the original input array in the center and val outside.
   */
   template<class T, unsigned int D> boost::shared_ptr< hoNDArray<T> >
-  pad(const typename uint64d<D>::Type& size, hoNDArray<T> *in, T val = T(0))
+  pad(const typename uint64d<D>::Type& size, const hoNDArray<T> *in, T val = T(0))
   {
     boost::shared_ptr< hoNDArray<T> > out(new hoNDArray<T>());
     pad<T,D>(size, in, out.get(), true, val);

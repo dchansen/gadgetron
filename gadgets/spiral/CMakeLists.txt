@@ -5,6 +5,7 @@ endif ()
 include_directories(
   ${CMAKE_SOURCE_DIR}/gadgets/mri_core
   ${CMAKE_SOURCE_DIR}/toolboxes/core/cpu
+  ${CMAKE_SOURCE_DIR}/toolboxes/mri_core
   ${CMAKE_SOURCE_DIR}/toolboxes/solvers
   ${CMAKE_SOURCE_DIR}/toolboxes/operators
   )
@@ -33,6 +34,7 @@ set_target_properties(gadgetron_spiral PROPERTIES VERSION ${GADGETRON_VERSION_ST
 
 target_link_libraries(gadgetron_spiral
   gadgetron_gadgetbase
+  gadgetron_toolbox_mri_core
   gadgetron_toolbox_log
   gadgetron_toolbox_cpucore 
   ${ISMRMRD_LIBRARIES} 
@@ -55,3 +57,4 @@ install (FILES ${SPIRAL_HEADER_FILES}
                      DESTINATION ${GADGETRON_INSTALL_INCLUDE_PATH} COMPONENT main)
 
 add_subdirectory(config)
+install(DIRECTORY DESTINATION ${GADGETRON_VAR_DIR}/GIRF DIRECTORY_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_WRITE GROUP_EXECUTE WORLD_READ WORLD_WRITE WORLD_EXECUTE)
