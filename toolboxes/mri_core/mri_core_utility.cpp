@@ -1236,4 +1236,25 @@ namespace Gadgetron
 
         return DIM_NONE;
     }
+    namespace {
+        template<class T> std::map<std::string, decltype(T::value)> to_map_internal(const std::vector<T>& userparameters){
+            std::map<std::string, decltype(T::value)> output_map;
+            for (auto element : userparameters){
+                output_map.insert({element.name, element.value});
+            }
+            return output_map;
+        }
+    }
+
+    std::map<std::string, long> to_map(const std::vector<ISMRMRD::UserParameterLong> & userparameters) {
+        return to_map_internal(userparameters);
+    }
+
+    std::map<std::string, double> to_map(const std::vector<ISMRMRD::UserParameterDouble> & userparameters) {
+        return to_map_internal(userparameters);
+    }
+
+    std::map<std::string, std::string> to_map(const std::vector<ISMRMRD::UserParameterString> & userparameters) {
+        return to_map_internal(userparameters);
+    }
 }

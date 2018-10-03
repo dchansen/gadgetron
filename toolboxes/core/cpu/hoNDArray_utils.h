@@ -640,7 +640,7 @@ namespace Gadgetron {
       typename uint64d<D>::Type matrix_size_in = from_std_vector<size_t, D>(*in->get_dimensions());
       typename uint64d<D>::Type matrix_size_out = from_std_vector<size_t, D>(*out->get_dimensions());
 
-      if (weak_greater_equal(matrix_size_in, matrix_size_out)){
+      if (weak_greater(matrix_size_in, matrix_size_out)){
           throw std::runtime_error("pad: size mismatch, cannot expand");
       }
 

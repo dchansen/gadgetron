@@ -5,6 +5,8 @@ endif ()
 include_directories(
   ${CMAKE_SOURCE_DIR}/gadgets/mri_core
   ${CMAKE_SOURCE_DIR}/toolboxes/core/cpu
+  ${CMAKE_SOURCE_DIR}/toolboxes/klt/cpu
+  ${CMAKE_SOURCE_DIR}/toolboxes/core/cpu/math
   ${CMAKE_SOURCE_DIR}/toolboxes/mri_core
   ${CMAKE_SOURCE_DIR}/toolboxes/solvers
   ${CMAKE_SOURCE_DIR}/toolboxes/operators
@@ -25,7 +27,7 @@ if (CUDA_FOUND)
       )
 
     set(SPIRAL_HEADER_FILES ${SPIRAL_HEADER_FILES} gpuSpiralSensePrepGadget.h)
-    set(SPIRAL_SRC_FILES ${SPIRAL_SRC_FILES}  gpuSpiralSensePrepGadget.cpp)
+    set(SPIRAL_SRC_FILES ${SPIRAL_SRC_FILES}  gpuSpiralSensePrepGadget.cpp TrajectoryParameters.cpp TrajectoryParameters.h)
 endif()
   
 add_library(gadgetron_spiral SHARED ${SPIRAL_HEADER_FILES} ${SPIRAL_SRC_FILES})
@@ -36,7 +38,8 @@ target_link_libraries(gadgetron_spiral
   gadgetron_gadgetbase
   gadgetron_toolbox_mri_core
   gadgetron_toolbox_log
-  gadgetron_toolbox_cpucore 
+  gadgetron_toolbox_cpucore
+  gadgetron_toolbox_cpucore_math
   ${ISMRMRD_LIBRARIES} 
   ${FFTW3_LIBRARIES} 
   optimized ${ACE_LIBRARIES} debug ${ACE_DEBUG_LIBRARY}

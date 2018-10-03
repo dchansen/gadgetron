@@ -24,6 +24,8 @@ namespace Gadgetron{
     typedef NDArray<T> BaseClass;
     typedef float coord_type;
     typedef T value_type;
+    using iterator = T*;
+    using const_iterator = const T*;
 
     hoNDArray();
 

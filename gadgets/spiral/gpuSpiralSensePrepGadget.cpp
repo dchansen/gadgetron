@@ -16,15 +16,23 @@
 
 #include <algorithm>
 #include <vector>
+#include <boost/range/algorithm/copy.hpp>
 
 namespace Gadgetron {
 
     gpuSpiralSensePrepGadget::gpuSpiralSensePrepGadget()
-            : samples_to_skip_start_(0), samples_to_skip_end_(0), samples_per_interleave_(0), prepared_(false),
+            : samples_to_skip_start_(0), samples_to_skip_end_(-1), samples_per_interleave_(0), prepared_(false),
               use_multiframe_grouping_(false), acceleration_factor_(0) {
     }
 
-    gpuSpiralSensePrepGadget::~gpuSpiralSensePrepGadget() {}
+    gpuSpiralSensePrepGadget::~gpuSpiralSensePrepGadget() {
+        for (auto& buffer : this->buffer_) {
+            for (auto& m1m2 : buffer){
+                std::get<0>(m1m2)->release();
+            }
+        }
+
+    }
 
     int gpuSpiralSensePrepGadget::process_config(ACE_Message_Block *mb) {
 
@@ -92,30 +100,14 @@ namespace Gadgetron {
         }
 
         // Get the encoding space and trajectory description
-        ISMRMRD::EncodingSpace e_space = h.encoding[0].encodedSpace;
-        ISMRMRD::EncodingSpace r_space = h.encoding[0].reconSpace;
-        ISMRMRD::EncodingLimits e_limits = h.encoding[0].encodingLimits;
+
         ISMRMRD::TrajectoryDescription traj_desc;
 
-        try {
-            auto measurement_dependencies = h.measurementInformation.get().measurementDependency;
-            auto girf_dependency = std::find_if(measurement_dependencies.begin(),measurement_dependencies.end(),
-                    [](auto& meas){ return meas.dependencyType == "GIRF"; });
-            if (girf_dependency != measurement_dependencies.end()){
-                auto girf_data = GIRF::load_girf(girf_dependency->measurementID);
-                if (girf_data) {
-                    this->girf_kernel = boost::make_shared<hoNDArray<std::complex<float>>>(girf_data->girf_kernel);
-                    this->girf_sampling_time = girf_data->sampling_time_us;
-                    GDEBUG("GIRF kernel with measurement ID %s loaded\n",girf_dependency->measurementID.c_str());
-                } else {
-                    GWARN("GIRF kernel with measurement ID %s not found\n",girf_dependency->measurementID.c_str());
-                }
-            }
-        } catch (...){
-            GDEBUG("The measurement information is missing.\n");
-        }
+
         // Determine reconstruction matrix sizes
         //
+
+        ISMRMRD::EncodingSpace e_space = h.encoding[0].encodedSpace;
 
         kernel_width_ = buffer_convolution_kernel_width.value();
         oversampling_factor_ = buffer_convolution_oversampling_factor.value();
@@ -137,74 +129,9 @@ namespace Gadgetron {
         oversampling_factor_ = float(image_dimensions_recon_os_[0]) / float(image_dimensions_recon_[0]);
 
 
-        if (h.encoding[0].trajectoryDescription) {
-            traj_desc = *h.encoding[0].trajectoryDescription;
-        } else {
-            GDEBUG("Trajectory description missing");
-            return GADGET_FAIL;
-        }
 
-        if (traj_desc.identifier != "HargreavesVDS2000") {
-            GDEBUG("Expected trajectory description identifier 'HargreavesVDS2000', not found.");
-            return GADGET_FAIL;
-        }
-
-
-        long interleaves = -1;
-        long fov_coefficients = -1;
-        long sampling_time_ns = -1;
-        double max_grad = -1.0;
-        double max_slew = -1.0;
-        double fov_coeff = -1.0;
-        double kr_max = -1.0;
-
-
-        for (std::vector<ISMRMRD::UserParameterLong>::iterator i(traj_desc.userParameterLong.begin());
-             i != traj_desc.userParameterLong.end(); ++i) {
-            if (i->name == "interleaves") {
-                interleaves = i->value;
-            } else if (i->name == "fov_coefficients") {
-                fov_coefficients = i->value;
-            } else if (i->name == "SamplingTime_ns") {
-                sampling_time_ns = i->value;
-            } else {
-                GDEBUG("WARNING: unused trajectory parameter %s found\n", i->name.c_str());
-            }
-        }
-
-        for (std::vector<ISMRMRD::UserParameterDouble>::iterator i(traj_desc.userParameterDouble.begin());
-             i != traj_desc.userParameterDouble.end(); ++i) {
-            if (i->name == "MaxGradient_G_per_cm") {
-                max_grad = i->value;
-            } else if (i->name == "MaxSlewRate_G_per_cm_per_s") {
-                max_slew = i->value;
-            } else if (i->name == "FOVCoeff_1_cm") {
-                fov_coeff = i->value;
-            } else if (i->name == "krmax_per_cm") {
-                kr_max = i->value;
-            } else {
-                GDEBUG("WARNING: unused trajectory parameter %s found\n", i->name.c_str());
-            }
-        }
-
-        if ((interleaves < 0) || (fov_coefficients < 0) || (sampling_time_ns < 0) || (max_grad < 0) || (max_slew < 0) ||
-            (fov_coeff < 0) || (kr_max < 0)) {
-            GDEBUG("Appropriate parameters for calculating spiral trajectory not found in XML configuration\n");
-            return GADGET_FAIL;
-        }
-
-
-        Tsamp_ns_ = sampling_time_ns;
-        Nints_ = interleaves;
-        interleaves_ = static_cast<int>(Nints_);
-
-        gmax_ = max_grad;
-        smax_ = max_slew;
-        krmax_ = kr_max;
-        fov_ = fov_coeff;
-
-        samples_to_skip_start_ = 0; //n.get<int>(std::string("samplestoskipstart.value"))[0];
-        samples_to_skip_end_ = -1; //n.get<int>(std::string("samplestoskipend.value"))[0];
+        ISMRMRD::EncodingSpace r_space = h.encoding[0].reconSpace;
+        ISMRMRD::EncodingLimits e_limits = h.encoding[0].encodingLimits;
 
         fov_vec_.push_back(r_space.fieldOfView_mm.x);
         fov_vec_.push_back(r_space.fieldOfView_mm.y);
@@ -213,30 +140,20 @@ namespace Gadgetron {
         slices_ = e_limits.slice ? e_limits.slice->maximum + 1 : 1;
         sets_ = e_limits.set ? e_limits.set->maximum + 1 : 1;
 
-        buffer_ = std::vector<ACE_Message_Queue<ACE_MT_SYNCH>>(slices_ * sets_);
+        buffer_ = decltype(buffer_)(slices_ * sets_);
 
-        image_headers_queue_ = std::vector<ACE_Message_Queue<ACE_MT_SYNCH>>(slices_ * sets_);
+        image_headers_queue_ = decltype(image_headers_queue_)(slices_ * sets_);
 
-        size_t bsize = sizeof(GadgetContainerMessage<ISMRMRD::ImageHeader>) * 100 * Nints_;
-
-        for (unsigned int i = 0; i < slices_ * sets_; i++) {
-            image_headers_queue_[i].high_water_mark(bsize);
-            image_headers_queue_[i].low_water_mark(bsize);
-        }
-
-        GDEBUG("smax:                    %f\n", smax_);
-        GDEBUG("gmax:                    %f\n", gmax_);
-        GDEBUG("Tsamp_ns:                %d\n", Tsamp_ns_);
-        GDEBUG("Nints:                   %d\n", Nints_);
-        GDEBUG("fov:                     %f\n", fov_);
-        GDEBUG("krmax:                   %f\n", krmax_);
-        GDEBUG("samples_to_skip_start_ : %d\n", samples_to_skip_start_);
-        GDEBUG("samples_to_skip_end_   : %d\n", samples_to_skip_end_);
         GDEBUG("recon matrix_size_x    : %d\n", image_dimensions_recon_[0]);
         GDEBUG("recon matrix_size_y    : %d\n", image_dimensions_recon_[1]);
 
+
+        trajectoryParameters = Spiral::TrajectoryParameters(h);
+
         return GADGET_OK;
     }
+
+
 
     int gpuSpiralSensePrepGadget::
     process(GadgetContainerMessage<ISMRMRD::AcquisitionHeader> *m1,
@@ -252,7 +169,8 @@ namespace Gadgetron {
 
 
         if (!prepared_) {
-            prepare_nfft(header.number_of_samples,header);
+            prepare_nfft(header);
+            prepared_ = true;
         }
 
         // Allocate host data buffer if it is NULL
@@ -271,7 +189,7 @@ namespace Gadgetron {
 
         // Duplicate the profile to avoid double deletion in case problems are encountered below.
         // Enque profile until all profiles for the reconstruction have been received.
-        buffer_[set * slices_ + slice].enqueue_tail(duplicate_profile(m1));
+        buffer_[set * slices_ + slice].push_back(std::make_pair(m1,m2));
 
         // Copy profile into the accumulation buffer for csm/regularization estimation
 
@@ -300,7 +218,7 @@ namespace Gadgetron {
             // This was the final profile of a frame
             //
 
-            if (Nints_ % interleaves_counter_singleframe_[set * slices_ + slice]) {
+            if (interleaves_ % interleaves_counter_singleframe_[set * slices_ + slice]) {
                 GDEBUG("Unexpected number of interleaves encountered in frame\n");
                 return GADGET_FAIL;
             }
@@ -308,20 +226,19 @@ namespace Gadgetron {
             // Has the acceleration factor changed?
             //
 
-            if (acceleration_factor_ != Nints_ / interleaves_counter_singleframe_[set * slices_ + slice]) {
+            if (acceleration_factor_ != interleaves_ / interleaves_counter_singleframe_[set * slices_ + slice]) {
                 change_acceleration_factor(header);
             }
 
             // Prepare an image header for this frame
             //
 
-            auto image_header = make_image_header(header);
-            image_headers_queue_[set * slices_ + slice].enqueue_tail(image_header);
+            image_headers_queue_[set * slices_ + slice].emplace_back(make_image_header(header));
             // Check if it is time to reconstruct.
             // I.e. prepare and pass a Sense job downstream...
             //
             if (!use_multiframe_grouping_ ||
-                (use_multiframe_grouping_ && interleaves_counter_multiframe_[set * slices_ + slice] == Nints_)) {
+                (use_multiframe_grouping_ && interleaves_counter_multiframe_[set * slices_ + slice] == interleaves_)) {
 
                 unsigned int num_coils = header.active_channels;
 
@@ -347,10 +264,10 @@ namespace Gadgetron {
 
                 long frames_per_reconstruction = (use_multiframe_grouping_) ? acceleration_factor_ : 1;
 
-                if (image_headers_queue_[set * slices_ + slice].message_count() != frames_per_reconstruction) {
+                if (image_headers_queue_[set * slices_ + slice].size() != frames_per_reconstruction) {
                     m4->release();
                     GDEBUG("Unexpected size of image header queue: %d, %d\n",
-                           image_headers_queue_[set * slices_ + slice].message_count(), frames_per_reconstruction);
+                           image_headers_queue_[set * slices_ + slice].size(), frames_per_reconstruction);
                     return GADGET_FAIL;
                 }
 
@@ -358,19 +275,10 @@ namespace Gadgetron {
                         boost::shared_array<ISMRMRD::ImageHeader>(new ISMRMRD::ImageHeader[frames_per_reconstruction]);
 
                 for (unsigned int i = 0; i < frames_per_reconstruction; i++) {
-
-                    ACE_Message_Block *mbq;
-
-                    if (image_headers_queue_[set * slices_ + slice].dequeue_head(mbq) < 0) {
-                        m4->release();
-                        GDEBUG("Image header dequeue failed\n");
-                        return GADGET_FAIL;
-                    }
-
-                    GadgetContainerMessage<ISMRMRD::ImageHeader> *m = AsContainerMessage<ISMRMRD::ImageHeader>(mbq);
-                    m4->getObjectPtr()->image_headers_[i] = *m->getObjectPtr();
-                    m->release();
+                    auto m = image_headers_queue_[set*slices_+slice][i];
+                    m4->getObjectPtr()->image_headers_[i] = m;
                 }
+                image_headers_queue_[set* slices_ + slice].clear();
 
                 // The Sense Job needs an image header as well.
                 // Let us just copy the initial one...
@@ -388,7 +296,6 @@ namespace Gadgetron {
             }
             interleaves_counter_singleframe_[set * slices_ + slice] = 0;
         }
-        m1->release();
         return GADGET_OK;
     }
 
@@ -462,28 +369,28 @@ namespace Gadgetron {
 
     void gpuSpiralSensePrepGadget::change_acceleration_factor(const ISMRMRD::AcquisitionHeader &header) {
         GDEBUG("Change of acceleration factor detected\n");
-        acceleration_factor_ = Nints_ / interleaves_counter_singleframe_[header.idx.set * slices_ + header.idx.slice];
+        acceleration_factor_ = interleaves_/ interleaves_counter_singleframe_[header.idx.set * slices_ + header.idx.slice];
 
         // The encoding operator needs to have its domain/codomain dimensions set accordingly
         if (buffer_using_solver_) {
 
             std::vector<size_t> domain_dims = image_dimensions_recon_;
 
-            std::vector<size_t> codomain_dims = *host_traj_->get_dimensions();
+            std::vector<size_t> codomain_dims = *host_traj_.get_dimensions();
             codomain_dims.push_back(header.active_channels);
 
             E_->set_domain_dimensions(&domain_dims);
             E_->set_codomain_dimensions(&codomain_dims);
 
-            cuNDArray<floatd2> traj(*host_traj_);
+            cuNDArray<floatd2> traj(host_traj_);
             E_->preprocess(&traj);
         }
     }
 
-    GadgetContainerMessage<ISMRMRD::ImageHeader> *
+    ISMRMRD::ImageHeader
     gpuSpiralSensePrepGadget::make_image_header(const ISMRMRD::AcquisitionHeader &acq_header) {
-        GadgetContainerMessage<ISMRMRD::ImageHeader> *header_msg = new GadgetContainerMessage<ISMRMRD::ImageHeader>();
-        auto &header = *header_msg->getObjectPtr();
+
+        auto header = ISMRMRD::ImageHeader();
 
         auto set = acq_header.idx.set;
         auto slice = acq_header.idx.slice;
@@ -494,23 +401,22 @@ namespace Gadgetron {
         header.matrix_size[1] = image_dimensions_recon_[1];
         header.matrix_size[2] = acceleration_factor_;
 
-        header.field_of_view[0] = fov_vec_[0];
-        header.field_of_view[1] = fov_vec_[1];
-        header.field_of_view[2] = fov_vec_[2];
+        boost::copy(fov_vec_,header.field_of_view);
 
         header.channels = acq_header.active_channels;
         header.slice = acq_header.idx.slice;
         header.set = acq_header.idx.set;
 
-        header.acquisition_time_stamp = acq_header.acquisition_time_stamp;
-        memcpy(header.physiology_time_stamp, acq_header.physiology_time_stamp, sizeof(uint32_t) *
-                                                                               ISMRMRD::ISMRMRD_PHYS_STAMPS);
 
-        memcpy(header.position, acq_header.position, sizeof(float) * 3);
-        memcpy(header.read_dir, acq_header.read_dir, sizeof(float) * 3);
-        memcpy(header.phase_dir, acq_header.phase_dir, sizeof(float) * 3);
-        memcpy(header.slice_dir, acq_header.slice_dir, sizeof(float) * 3);
-        memcpy(header.patient_table_position, acq_header.patient_table_position, sizeof(float) * 3);
+        header.acquisition_time_stamp = acq_header.acquisition_time_stamp;
+
+        boost::copy(acq_header.physiology_time_stamp,header.physiology_time_stamp);
+        boost::copy(acq_header.position,header.position);
+        boost::copy(acq_header.read_dir,header.read_dir);
+        boost::copy(acq_header.phase_dir,header.phase_dir);
+        boost::copy(acq_header.slice_dir,header.slice_dir);
+        boost::copy(acq_header.patient_table_position,header.patient_table_position);
+
 
         header.data_type = ISMRMRD::ISMRMRD_CXFLOAT;
         header.image_index = image_counter_[set * slices_ + slice]++;
@@ -519,96 +425,44 @@ namespace Gadgetron {
         // Enque header until we are ready to assemble a Sense job
         //
 
-        return header_msg;
+        return header;
     }
 
-    void gpuSpiralSensePrepGadget::prepare_nfft(int number_of_samples, const ISMRMRD::AcquisitionHeader& acq_header) {
-        int nfov = 1;         /*  number of fov coefficients.             */
-        int ngmax = 1e5;       /*  maximum number of gradient samples      */
-        double *xgrad;             /*  x-component of gradient.                */
-        double *ygrad;             /*  y-component of gradient.                */
-        double *x_trajectory;
-        double *y_trajectory;
-        double *weighting;
-        int ngrad;
-        //int     count;
-        double sample_time = (1.0 * Tsamp_ns_) * 1e-9;
-
-        /*	call c-function here to calculate gradients */
-        calc_vds(smax_, gmax_, sample_time, sample_time, Nints_, &fov_, nfov, krmax_, ngmax, &xgrad, &ygrad, &ngrad);
-        samples_per_interleave_ = std::min(ngrad, static_cast<int>(number_of_samples));
-
-        GDEBUG("Using %d samples per interleave\n", samples_per_interleave_);
-
-        if (this->girf_kernel) {
-            correct_gradients(xgrad, ygrad, ngrad, Tsamp_ns_*1e-3, this->girf_sampling_time, acq_header.read_dir, acq_header.phase_dir,
-                              acq_header.slice_dir);
-        }
-
-        /* Calcualte the trajectory and weights*/
-        calc_traj(xgrad, ygrad, samples_per_interleave_, Nints_, sample_time, krmax_, &x_trajectory, &y_trajectory,
-                  &weighting);
-
-        host_traj_ = boost::shared_ptr<hoNDArray<floatd2> >(new hoNDArray<floatd2>);
-        host_weights_ = boost::shared_ptr<hoNDArray<float> >(new hoNDArray<float>);
-
-        std::vector<size_t> trajectory_dimensions;
-        trajectory_dimensions.push_back(samples_per_interleave_ * Nints_);
+    void gpuSpiralSensePrepGadget::prepare_nfft( const ISMRMRD::AcquisitionHeader& acq_header) {
 
 
-
-
-        host_traj_->create(&trajectory_dimensions);
-        host_weights_->create(&trajectory_dimensions);
-
-
-        {
-            float *co_ptr = reinterpret_cast<float *>(host_traj_->get_data_ptr());
-            float *we_ptr = host_weights_->get_data_ptr();
-
-            for (int i = 0; i < (samples_per_interleave_ * Nints_); i++) {
-                co_ptr[i * 2] = -x_trajectory[i] / 2;
-                co_ptr[i * 2 + 1] = -y_trajectory[i] / 2;
-                we_ptr[i] = weighting[i];
-            }
-
-            float min_traj = *std::min_element(co_ptr,co_ptr+host_traj_->get_number_of_elements()*2);
-            float max_traj = *std::max_element(co_ptr,co_ptr+host_traj_->get_number_of_elements()*2);
-
-            std::transform(co_ptr,co_ptr+host_traj_->get_number_of_elements()*2,co_ptr,
-                    [&](auto element){return (element-min_traj)/(max_traj-min_traj)-0.5;});
-
-
-        }
-
-
-
-
-
-        delete[] xgrad;
-        delete[] ygrad;
-        delete[] x_trajectory;
-        delete[] y_trajectory;
-        delete[] weighting;
 
         // Setup the NFFT plan
         //
 
-        cuNDArray<floatd2> traj(*host_traj_);
-        dcw_buffer_ = boost::shared_ptr<cuNDArray<float> >(new cuNDArray<float>(*host_weights_));
+        std::tie(host_traj_,host_weights_) = trajectoryParameters.calculate_trajectories_and_weight(acq_header);
+        interleaves_ = host_traj_.get_size(1);
+        samples_per_interleave_ = host_traj_.get_size(0);
+
+
+        host_traj_.reshape({size_t(samples_per_interleave_*interleaves_)});
+        host_weights_.reshape({size_t(samples_per_interleave_*interleaves_)});
+
+        cuNDArray<floatd2> traj(host_traj_);
+        dcw_buffer_ = boost::make_shared<cuNDArray<float>>(host_weights_);
 
         nfft_plan_.setup(from_std_vector<size_t, 2>(image_dimensions_recon_), image_dimensions_recon_os_,
                          kernel_width_);
         nfft_plan_.preprocess(&traj, cuNFFT_plan<float, 2>::NFFT_PREP_NC2C);
 
+
+
         // Setup the non-Cartesian Sense encoding operator
+        //
+
+
+
+        // Setup cg solver if the csm/regularization image is to be based hereon
         //
 
         E_ = boost::shared_ptr<cuNonCartesianSenseOperator<float, 2> >(new cuNonCartesianSenseOperator<float, 2>);
         E_->setup(from_std_vector<size_t, 2>(image_dimensions_recon_), image_dimensions_recon_os_, kernel_width_);
 
-        // Setup cg solver if the csm/regularization image is to be based hereon
-        //
 
         if (buffer_using_solver_) {
 
@@ -622,7 +476,6 @@ namespace Gadgetron {
             cg_.set_output_mode(decltype(cg_)::OUTPUT_SILENT);
         }
 
-        prepared_ = true;
     }
 
     GadgetContainerMessage<ISMRMRD::AcquisitionHeader> *
@@ -643,7 +496,7 @@ namespace Gadgetron {
 
     std::tuple<boost::shared_ptr<hoNDArray<float_complext>>, boost::shared_ptr<hoNDArray<floatd2>>, boost::shared_ptr<hoNDArray<float>>>
     gpuSpiralSensePrepGadget::get_data_from_queues(size_t set, size_t slice, size_t num_coils) {
-        unsigned int profiles_buffered = buffer_[set * slices_ + slice].message_count();
+        unsigned int profiles_buffered = buffer_[set * slices_ + slice].size();
 
 
         auto data_host = boost::make_shared<hoNDArray<float_complext>>(
@@ -660,19 +513,11 @@ namespace Gadgetron {
         boost::shared_ptr<hoNDArray<float> > dcw_host(new hoNDArray<float>(&ddimensions));
 
         for (unsigned int p = 0; p < profiles_buffered; p++) {
-            ACE_Message_Block *mbq;
-            buffer_[set * slices_ + slice].dequeue_head(mbq);
 
-            GadgetContainerMessage<ISMRMRD::AcquisitionHeader> *acq =
-                    AsContainerMessage<ISMRMRD::AcquisitionHeader>(mbq);
+            GadgetContainerMessage<ISMRMRD::AcquisitionHeader> *acq;
+            GadgetContainerMessage<hoNDArray<std::complex<float> > > *daq;
 
-            GadgetContainerMessage<hoNDArray<std::complex<float> > > *daq =
-                    AsContainerMessage<hoNDArray<std::complex<float> > >(mbq->cont());
-
-            if (!acq || !daq) {
-                GDEBUG("Unable to interpret data on message Q\n");
-//                        return GADGET_FAIL;
-            }
+            std::tie(acq,daq) = buffer_[set * slices_ + slice][p];
 
             for (unsigned int c = 0; c < num_coils; c++) {
                 float_complext *data_ptr = data_host->get_data_ptr();
@@ -687,7 +532,7 @@ namespace Gadgetron {
             floatd2 *traj_ptr = traj_host->get_data_ptr();
             traj_ptr += p * samples_per_interleave_;
 
-            floatd2 *t_ptr = host_traj_->get_data_ptr();
+            floatd2 *t_ptr = host_traj_.get_data_ptr();
             t_ptr += acq->getObjectPtr()->idx.kspace_encode_step_1 * samples_per_interleave_;
 
             memcpy(traj_ptr, t_ptr, samples_per_interleave_ * sizeof(floatd2));
@@ -695,40 +540,17 @@ namespace Gadgetron {
             float *dcw_ptr = dcw_host->get_data_ptr();
             dcw_ptr += p * samples_per_interleave_;
 
-            float *d_ptr = host_weights_->get_data_ptr();
+            float *d_ptr = host_weights_.get_data_ptr();
             d_ptr += acq->getObjectPtr()->idx.kspace_encode_step_1 * samples_per_interleave_;
 
             memcpy(dcw_ptr, d_ptr, samples_per_interleave_ * sizeof(float));
 
-            mbq->release();
+            acq->release();
         }
+        buffer_[set*slices_+slice].clear();
         return std::make_tuple(data_host, traj_host, dcw_host);
     }
 
-    void gpuSpiralSensePrepGadget::correct_gradients(double *x, double *y, size_t num_elements, float grad_samp_ns,
-                                                     float girf_samp_ns, const float *read_dir, const float *phase_dir,
-                                                     const float *slice_dir) {
-
-
-        hoNDArray<float> gradients{num_elements, 2};
-        for (size_t i = 0; i < num_elements; i++) {
-            gradients(i, 0) = x[i];
-            gradients(i, 1) = y[i];
-        }
-
-        arma::fmat33 rotation_matrix{{read_dir[0],  read_dir[1],  read_dir[2]},
-                                     {phase_dir[0], phase_dir[1], phase_dir[2]},
-                                     {slice_dir[0], slice_dir[1], slice_dir[2]}
-        };
-
-        gradients = GIRF::girf_correct(gradients, *girf_kernel, rotation_matrix, grad_samp_ns, girf_samp_ns, 0);
-
-        for (size_t i = 0; i < num_elements; i++) {
-            x[i] = gradients(i, 0);
-            y[i] = gradients(i,1);
-        }
-
-    }
 
     GADGET_FACTORY_DECLARE(gpuSpiralSensePrepGadget)
 }

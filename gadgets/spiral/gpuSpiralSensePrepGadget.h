@@ -17,6 +17,9 @@
 #include <complex>
 #include <boost/shared_ptr.hpp>
 #include <boost/shared_array.hpp>
+#include <boost/optional.hpp>
+#include <ismrmrd/xml.h>
+#include "TrajectoryParameters.h"
 
 namespace Gadgetron {
 
@@ -56,17 +59,13 @@ namespace Gadgetron {
         int slices_;
         int sets_;
         std::vector<long> image_counter_;
+        Spiral::TrajectoryParameters trajectoryParameters;
         int device_number_;
 
-        long Tsamp_ns_;
-        long Nints_;
+
         std::vector<long> interleaves_counter_singleframe_;
         std::vector<long> interleaves_counter_multiframe_;
         long acceleration_factor_;
-        double gmax_;
-        double smax_;
-        double krmax_;
-        double fov_;
 
         bool prepared_;
         bool use_multiframe_grouping_;
@@ -77,11 +76,9 @@ namespace Gadgetron {
         float kernel_width_;
         float oversampling_factor_;
 
-        boost::shared_ptr<hoNDArray<std::complex<float>>> girf_kernel;
-        float girf_sampling_time;
 
-        boost::shared_ptr<hoNDArray<floatd2> > host_traj_;
-        boost::shared_ptr<hoNDArray<float> > host_weights_;
+        hoNDArray<floatd2> host_traj_;
+        hoNDArray<float> host_weights_;
 
         std::vector<hoNDArray<float_complext>> host_data_buffer_;
         boost::shared_ptr<cuNDArray<float> > dcw_buffer_;
@@ -96,12 +93,12 @@ namespace Gadgetron {
         boost::shared_ptr<cuNonCartesianSenseOperator<float, 2> > E_;
         boost::shared_ptr<cuCgPreconditioner<float_complext> > D_;
 
-        std::vector<ACE_Message_Queue<ACE_MT_SYNCH>> buffer_;
-        std::vector<ACE_Message_Queue<ACE_MT_SYNCH>> image_headers_queue_;
+        std::vector<std::vector<std::pair<GadgetContainerMessage<ISMRMRD::AcquisitionHeader>*,GadgetContainerMessage<hoNDArray<std::complex<float>>>*>>> buffer_;
+        std::vector<std::vector<ISMRMRD::ImageHeader>> image_headers_queue_;
 
-        void prepare_nfft(int number_of_samples, const ISMRMRD::AcquisitionHeader& header);
+        void prepare_nfft( const ISMRMRD::AcquisitionHeader& header);
 
-        GadgetContainerMessage<ISMRMRD::ImageHeader> *make_image_header(const ISMRMRD::AcquisitionHeader &acq_header);
+        ISMRMRD::ImageHeader make_image_header(const ISMRMRD::AcquisitionHeader &acq_header);
 
         void change_acceleration_factor(const ISMRMRD::AcquisitionHeader &header);
 
@@ -113,8 +110,6 @@ namespace Gadgetron {
 
         void setup_buffers(const ISMRMRD::AcquisitionHeader &header);
 
-        void correct_gradients(double *x, double *y, size_t num_elements, float grad_samp_ns, float girf_samp_ns,
-                               const float *read_dir, const float *phase_dir, const float *slice_dir);
     };
 }
 #endif //gpuSpiralSensePrepGadget_H

@@ -1,7 +1,7 @@
 #include "SimpleReconGadget.h"
 #include "hoNDFFT.h"
 #include "hoNDArray_math.h"
-
+#include <hoNDArray_fileio.h>
 namespace Gadgetron{
 
 SimpleReconGadget::SimpleReconGadget()
@@ -111,6 +111,7 @@ int SimpleReconGadget::process( GadgetContainerMessage<IsmrmrdReconData>* m1)
                     chunk_dims[3] = CHA;
                     hoNDArray<std::complex<float> > chunk = hoNDArray<std::complex<float> >(chunk_dims, &dbuff.data_(0,0,0,0,n,s,loc));
 
+                    write_nd_array<std::complex<float>>(&chunk,"chunk.cplx");
                     //Do the FFTs in place
                     hoNDFFT<float>::instance()->ifft3c(chunk);
 

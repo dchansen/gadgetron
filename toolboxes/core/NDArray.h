@@ -48,6 +48,7 @@ namespace Gadgetron{
         void reshape(const std::vector<size_t> *dims);
         void reshape(const std::vector<size_t> & dims){ this->reshape(&dims);}
         void reshape(boost::shared_ptr< std::vector<size_t> > dims);
+        void reshape(std::initializer_list<size_t> dims){ this->reshape(std::vector<size_t>(dims));}
 
         bool dimensions_equal(std::vector<size_t> *d) const;
 
