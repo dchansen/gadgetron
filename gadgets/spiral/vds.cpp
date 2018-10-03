@@ -439,49 +439,51 @@ namespace Gadgetron {
 
                 //abs(g(:)
                 double abs_w = sqrt((pow(xgrad[gradcount], 2)) + (pow(ygrad[gradcount], 2)));
-                double ang_g, ang_t;
-                if (xgrad[gradcount] == 0.0) {
-                    ang_g = PI / 2;
-                } else {
-                    ang_g = atan2(ygrad[gradcount], xgrad[gradcount]);   //angle of gradient
-                }
+                double ang_g = xgrad[gradcount] == 0.0 ? PI/2 : atan2(ygrad[gradcount],xgrad[gradcount]);
 
-                if (x_tr == 0.0) {
-                    ang_t = PI / 2;
-                } else {
-                    ang_t = atan2(y_tr, x_tr);                          // angle of trajectory
-                }
+                double ang_t = x_tr == 0.0 ? PI/2 : atan2(y_tr,x_tr);
 
                 double tp_w = sin(ang_g - ang_t);
-                tp_w = sqrt(pow(tp_w, 2));    //abs(tp_w);
-                //              mexPrintf("tp_w = %f\n", tp_w);
-                tp_w = abs_w * tp_w;
-
-                //       mexPrintf("abs_w = %f, ang_g =%f, ang_t = %f, tp_w = %f\n",abs_w, ang_g, ang_t, tp_w);
-
+                tp_w = abs_w * abs(tp_w);
                 *wptr++ = tp_w;
-                //g = gradients, k = trajectory
-                //        weights = abs(g(:)) .* abs(sin(angle(g(:))-angle(k(:))));
             }
         }
     }
+    hoNDArray<float> calculate_weights(const hoNDArray<floatd2> &gradients, const hoNDArray<floatd2> &trajectories) {
 
-    hoNDArray<floatd2> create_rotations(const double *xgrad, const double *ygrad, int ngrad, int nints) {
-         hoNDArray < floatd2 > result(ngrad, nints);
+        hoNDArray<float> weights(gradients.get_dimensions());
 
 
-        for (int inter = 0; inter < nints; inter++) {
-            double rotation = (inter * 2 * PI) / nints;
-            for (int gradcount = 0; gradcount < ngrad; gradcount++) {
-                floatd2 point(xgrad[gradcount], ygrad[gradcount]);
-                result(gradcount, inter) = floatd2(point[0] * cos(rotation) + point[1] * sin(rotation),
-                                                  -point[0] * sin(rotation) + point[1] * cos(rotation));
-            }
-        }
-        return result;
+        boost::transform(gradients,trajectories,weights.begin(),
+                [](const floatd2& gradient,const floatd2& trajectory){
+                    auto abs_w = norm(gradient);
+                    auto ang_g = atan2(gradient[1],gradient[0]);
+                    auto ang_t = atan2(trajectory[1],trajectory[0]);
+                    return abs(sin(ang_g-ang_t))*abs_w*2;
+
+        });
+
+        return weights;
+    }
+    hoNDArray<float> calculate_weights_Hoge(const hoNDArray<floatd2> &gradients, const hoNDArray<floatd2> &trajectories) {
+
+        hoNDArray<float> weights(gradients.get_dimensions());
+
+
+        boost::transform(gradients,trajectories,weights.begin(),
+                [](const floatd2& gradient,const floatd2& trajectory){
+                    auto abs_g = norm(gradient);
+                    auto abs_t = norm(trajectory);
+                    auto ang_g = atan2(gradient[1],gradient[0]);
+                    auto ang_t = atan2(trajectory[1],trajectory[0]);
+                    return abs(cos(ang_g-ang_t))*abs_g*abs_t;
+
+        });
+
+        return weights;
     }
 
-    hoNDArray<floatd2> calculate_trajectories(const hoNDArray<floatd2> &gradients, float Tgsamp, float krmax) {
+    hoNDArray<floatd2> calculate_trajectories(const hoNDArray<floatd2> &gradients, float sample_time, float krmax) {
                 const int nints = gradients.get_size(1);
         const int ngrad = gradients.get_size(0);
 
@@ -492,29 +494,50 @@ namespace Gadgetron {
 
             for (int gradcount = 1; gradcount < ngrad; gradcount++) {
                 trajectory(gradcount, interleave) = trajectory(gradcount - 1, interleave) +
-                                                    float(GAMMA) * gradients(gradcount - 1,interleave) * Tgsamp;
+                                                    float(GAMMA) * gradients(gradcount - 1,interleave) * sample_time;
             }
         }
 
-        boost::transform(trajectory,trajectory.begin(),[&](auto t){ return -t/(2*krmax);});
+        boost::transform(trajectory,trajectory.begin(),[&](auto t){ return t/krmax;});
         return trajectory;
     }
 
-    hoNDArray<float> calculate_weights(const hoNDArray<floatd2> &gradients, const hoNDArray<floatd2> &trajectories) {
-
-        hoNDArray<float> weights(gradients.get_dimensions());
 
 
-        boost::transform(gradients,trajectories,weights.begin(),
-                [](const auto& gradient,const auto& trajectory){
-                    auto abs_w = norm(gradient);
-                    auto ang_g = atan2(gradient[1],gradient[0]);
-                    auto ang_t = atan2(trajectory[1],trajectory[0]);
-                    return abs(sin(ang_g-ang_t))*abs_w;
+    hoNDArray<floatd2> calculate_vds(double slewmax, double gradmax, double Tgsample, double Tdsample, int Ninterleaves,
+             double *fov, int numfov, double krmax, int ngmax,int max_nsamples){
 
-        });
+        double* x_ptr;
+        double* y_ptr;
+        int Nints;
+        calc_vds(slewmax,gradmax,Tgsample,Tdsample,Ninterleaves,fov, numfov,krmax,ngmax,&x_ptr,&y_ptr,&Nints);
 
-        return weights;
+        hoNDArray<floatd2> gradient(std::min(Nints,max_nsamples));
+        size_t nsamples = gradient.get_number_of_elements();
+        std::transform(x_ptr,x_ptr+nsamples,y_ptr,gradient.begin(),[](auto x, auto y){return -floatd2(x,y)/2;});
+
+        delete[] x_ptr;
+        delete[] y_ptr;
+        return gradient;
+
+    }
+
+
+    hoNDArray<floatd2>  create_rotations(const hoNDArray<floatd2>& trajectories,int nints) {
+        auto dims = *trajectories.get_dimensions();
+        dims.push_back(nints);
+         hoNDArray < floatd2 > result(dims);
+
+        int ngrad = trajectories.get_number_of_elements();
+        for (int inter = 0; inter < nints; inter++) {
+            double rotation = (inter * 2 * PI) / nints;
+            for (int gradcount = 0; gradcount < ngrad; gradcount++) {
+                floatd2 point = trajectories[gradcount];
+                result(gradcount, inter) = floatd2(point[0] * cos(rotation) + point[1] * sin(rotation),
+                                                  -point[0] * sin(rotation) + point[1] * cos(rotation));
+            }
+        }
+        return result;
     }
 }
 

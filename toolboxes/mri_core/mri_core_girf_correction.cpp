@@ -105,6 +105,7 @@ namespace Gadgetron {
         template<typename Iterator>
         bool parse_girf_text(Iterator first, Iterator last, std::vector<std::vector<std::complex<float>>> &v) {
             using namespace boost::spirit::qi;
+            namespace qi = boost::spirit::qi;
             using boost::spirit::ascii::space;
 
             rule<Iterator, std::complex<float>(), ascii::space_type> base = float_ >> ((float_ >> (lit('i') | lit('j'))) | attr(0.0f));
@@ -112,7 +113,7 @@ namespace Gadgetron {
             rule<Iterator, std::vector<std::complex<float>>(), ascii::space_type> row = (lit('[') >> complex % ','
                                                                                                   >> lit(']'));
             bool r = phrase_parse(first, last,
-                                  lit('[') >> row >> repeat(2)[lit(',') >> row] >> lit(']'),
+                                  lit('[') >> row >> qi::repeat(2)[lit(',') >> row] >> lit(']'),
                                   space, v);
             if (!r || first != last) // fail if we did not get a full match
                 return false;

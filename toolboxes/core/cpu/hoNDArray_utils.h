@@ -1002,4 +1002,19 @@ namespace Gadgetron {
 
     return _out;
   }
+
+
+
+  template<class T> hoNDArray<T> repeat(const hoNDArray<T>& array,unsigned int repeats){
+      auto dims = *array.get_dimensions();
+      dims.push_back(repeats);
+
+      hoNDArray<T> output(dims);
+      T* out_ptr = output.get_data_ptr();
+
+      for (int i =0; i < repeats; i++){
+          std::copy(array.begin(),array.end(),out_ptr+i*array.get_number_of_elements());
+      }
+      return output;
+  }
 }

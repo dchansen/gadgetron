@@ -2,7 +2,10 @@
 // Created by dchansen on 10/2/18.
 //
 
+#include <cpu/hoNDArray_utils.h>
+#include <cpu/hoNDArray_fileio.h>
 #include "TrajectoryParameters.h"
+#include "vector_td_utilities.h"
 
 namespace Gadgetron {
     namespace Spiral {
@@ -11,46 +14,23 @@ namespace Gadgetron {
         TrajectoryParameters::calculate_trajectories_and_weight(const ISMRMRD::AcquisitionHeader &acq_header) {
             int nfov = 1;         /*  number of fov coefficients.             */
             int ngmax = 1e5;       /*  maximum number of gradient samples      */
-            double *xgrad;             /*  x-component of gradient.                */
-            double *ygrad;             /*  y-component of gradient.                */
-            int ngrad;
-            //int     count;
             double sample_time = (1.0 * Tsamp_ns_) * 1e-9;
 
-            /*	call c-function here to calculate gradients */
-            calc_vds(smax_, gmax_, sample_time, sample_time, Nints_, &fov_, nfov, krmax_, ngmax, &xgrad, &ygrad,
-                     &ngrad);
-            int samples_per_interleave_ = std::min(ngrad, static_cast<int>(acq_header.number_of_samples));
+
+            auto base_gradients = calculate_vds(smax_,gmax_,sample_time,sample_time,Nints_,&fov_,nfov,krmax_,ngmax,acq_header.number_of_samples);
+            int samples_per_interleave_ = base_gradients.get_number_of_elements();
 
             GDEBUG("Using %d samples per interleave\n", samples_per_interleave_);
 
-            auto gradients = create_rotations(xgrad, ygrad, samples_per_interleave_, Nints_);
-
-            delete[] xgrad;
-            delete[] ygrad;
-//
-            if (this->girf_kernel) {
-                gradients = correct_gradients(gradients, Tsamp_ns_ * 1e-3, this->girf_sampling_time_us,
-                                              acq_header.read_dir, acq_header.phase_dir,
-                                              acq_header.slice_dir);
+            base_gradients = create_rotations(base_gradients,Nints_);
+            if (this->girf_kernel){
+                base_gradients = correct_gradients(base_gradients,Tsamp_ns_*1e-3,this->girf_sampling_time_us,acq_header.read_dir,acq_header.phase_dir,acq_header.slice_dir);
             }
+            auto trajectories = calculate_trajectories(base_gradients,sample_time,krmax_);
 
-
-            auto trajectories = calculate_trajectories(gradients, sample_time, krmax_);
-            auto weights = calculate_weights(gradients, trajectories);
-
-//            {
-//                float *co_ptr = reinterpret_cast<float *>(trajectories.get_data_ptr());
-//                float min_traj = *std::min_element(co_ptr, co_ptr + trajectories.get_number_of_elements() * 2);
-//                float max_traj = *std::max_element(co_ptr, co_ptr + trajectories.get_number_of_elements() * 2);
-//
-//                std::transform(co_ptr, co_ptr + trajectories.get_number_of_elements() * 2, co_ptr,
-//                               [&](auto element) { return (element - min_traj) / (max_traj - min_traj) - 0.5; });
-//            }
-
+            auto weights = calculate_weights_Hoge(base_gradients,trajectories);
 
             return std::make_pair(std::move(trajectories), std::move(weights));
-
 
         }
 
@@ -123,7 +103,7 @@ namespace Gadgetron {
                                          {slice_dir[0], slice_dir[1], slice_dir[2]}
             };
 
-            return GIRF::girf_correct(gradients, *girf_kernel, rotation_matrix, grad_samp_us, girf_samp_us, 0.85);
+            return GIRF::girf_correct(gradients, *girf_kernel, rotation_matrix, grad_samp_us, girf_samp_us, TE_);
 
         }
     }

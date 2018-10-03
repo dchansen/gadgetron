@@ -16,11 +16,19 @@ namespace Gadgetron{
 
 
   EXPORTGADGETS_SPIRAL
-  hoNDArray<floatd2> create_rotations(const double *xgrad, const double *ygrad, int Ngrad, int Nints);
-
-  EXPORTGADGETS_SPIRAL
-  hoNDArray<floatd2> calculate_trajectories(const hoNDArray<floatd2>& gradients, float Tgsamp, float  krmax);
+  hoNDArray<floatd2> calculate_trajectories(const hoNDArray<floatd2> &gradients, float sample_time, float krmax);
 
  EXPORTGADGETS_SPIRAL
   hoNDArray<float> calculate_weights(const hoNDArray<floatd2>& gradients, const hoNDArray<floatd2>& trajectories);
+
+
+    EXPORTGADGETS_SPIRAL
+    hoNDArray<float> calculate_weights_Hoge(const hoNDArray<floatd2>& gradients, const hoNDArray<floatd2>& trajectories);
+ EXPORTGADGETS_SPIRAL
+ hoNDArray<floatd2> calculate_vds(double slewmax, double gradmax, double Tgsample, double Tdsample, int Ninterleaves,
+             double *fov, int numfov, double krmax, int ngmax, int max_nsamples);
+
+   EXPORTGADGETS_SPIRAL
+  hoNDArray<floatd2> create_rotations(const hoNDArray<floatd2>& trajectories, int Nints);
+
 }
