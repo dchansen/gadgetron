@@ -39,14 +39,14 @@ namespace Gadgetron {
             auto trajectories = calculate_trajectories(gradients, sample_time, krmax_);
             auto weights = calculate_weights(gradients, trajectories);
 
-            {
-                float *co_ptr = reinterpret_cast<float *>(trajectories.get_data_ptr());
-                float min_traj = *std::min_element(co_ptr, co_ptr + trajectories.get_number_of_elements() * 2);
-                float max_traj = *std::max_element(co_ptr, co_ptr + trajectories.get_number_of_elements() * 2);
-
-                std::transform(co_ptr, co_ptr + trajectories.get_number_of_elements() * 2, co_ptr,
-                               [&](auto element) { return (element - min_traj) / (max_traj - min_traj) - 0.5; });
-            }
+//            {
+//                float *co_ptr = reinterpret_cast<float *>(trajectories.get_data_ptr());
+//                float min_traj = *std::min_element(co_ptr, co_ptr + trajectories.get_number_of_elements() * 2);
+//                float max_traj = *std::max_element(co_ptr, co_ptr + trajectories.get_number_of_elements() * 2);
+//
+//                std::transform(co_ptr, co_ptr + trajectories.get_number_of_elements() * 2, co_ptr,
+//                               [&](auto element) { return (element - min_traj) / (max_traj - min_traj) - 0.5; });
+//            }
 
 
             return std::make_pair(std::move(trajectories), std::move(weights));

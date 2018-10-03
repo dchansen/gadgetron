@@ -496,7 +496,7 @@ namespace Gadgetron {
             }
         }
 
-        boost::transform(trajectory,trajectory.begin(),[&](auto t){ return t/krmax;});
+        boost::transform(trajectory,trajectory.begin(),[&](auto t){ return -t/(2*krmax);});
         return trajectory;
     }
 
