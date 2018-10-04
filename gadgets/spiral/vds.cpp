@@ -465,6 +465,7 @@ namespace Gadgetron {
 
         return weights;
     }
+
     hoNDArray<float> calculate_weights_Hoge(const hoNDArray<floatd2> &gradients, const hoNDArray<floatd2> &trajectories) {
 
         hoNDArray<float> weights(gradients.get_dimensions());

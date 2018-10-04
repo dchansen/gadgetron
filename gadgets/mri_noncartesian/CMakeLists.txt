@@ -42,7 +42,7 @@ set( gadgetron_mri_noncartesian_src_files
 set( gadgetron_mri_noncartesian_config_files
 	config/Generic_CPU_Gridding_Recon.xml
   config/Generic_Spiral.xml
-  config/Generic_Spiral_SNR.xml GIRFCorrectionGadget.cpp GIRFCorrectionGadget.h)
+  config/Generic_Spiral_SNR.xml)
 
 add_library(gadgetron_mri_noncartesian SHARED 
   gadgetron_mri_noncartesian_export.h 

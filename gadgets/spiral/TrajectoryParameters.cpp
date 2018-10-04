@@ -23,12 +23,16 @@ namespace Gadgetron {
             GDEBUG("Using %d samples per interleave\n", samples_per_interleave_);
 
             base_gradients = create_rotations(base_gradients,Nints_);
-            if (this->girf_kernel){
-                base_gradients = correct_gradients(base_gradients,Tsamp_ns_*1e-3,this->girf_sampling_time_us,acq_header.read_dir,acq_header.phase_dir,acq_header.slice_dir);
-            }
+
             auto trajectories = calculate_trajectories(base_gradients,sample_time,krmax_);
 
             auto weights = calculate_weights_Hoge(base_gradients,trajectories);
+
+            if (this->girf_kernel){
+                base_gradients = correct_gradients(base_gradients,Tsamp_ns_*1e-3,this->girf_sampling_time_us,acq_header.read_dir,acq_header.phase_dir,acq_header.slice_dir);
+                //Weights should be calculated without GIRF corrections according to Hoge et al 2005
+                trajectories = calculate_trajectories(base_gradients,sample_time,krmax_);
+            }
 
             return std::make_pair(std::move(trajectories), std::move(weights));
 
