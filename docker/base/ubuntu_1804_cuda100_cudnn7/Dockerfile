@@ -1,4 +1,4 @@
-FROM nvidia/cuda:9.2-cudnn7-devel-ubuntu18.04
+FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu18.04
 
 ARG BART_URL=https://github.com/mrirecon/bart
 ARG BART_BRANCH=master
@@ -80,8 +80,8 @@ RUN cd /opt && \
 ENV GADGETRON_HOME=/usr/local \
     ISMRMRD_HOME=/usr/local
 
-ENV PATH=$PATH:/usr/local/cuda-9.2/bin;$GADGETRON_HOME/bin:$ISMRMRD_HOME/bin \
-    LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-9.2/lib64:$ISMRMRD_HOME/lib:$GADGETRON_HOME/lib
+ENV PATH=$PATH:/usr/local/cuda/bin;$GADGETRON_HOME/bin:$ISMRMRD_HOME/bin \
+    LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64:$ISMRMRD_HOME/lib:$GADGETRON_HOME/lib
 
 ENV LIBRARY_PATH /usr/local/cuda/lib64/stubs:${LIBRARY_PATH}
 

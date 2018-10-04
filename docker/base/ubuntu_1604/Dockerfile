@@ -30,7 +30,7 @@ RUN pip3 uninstall h5py
 RUN apt-get install -y python3-h5py
 
 RUN pip3 install --upgrade tensorflow
-RUN pip3 install http://download.pytorch.org/whl/cpu/torch-0.4.0-cp35-cp35m-linux_x86_64.whl 
+RUN pip3 install http://download.pytorch.org/whl/cpu/torch-0.4.1-cp35-cp35m-linux_x86_64.whl 
 RUN pip3 install torchvision 
 RUN pip3 install tensorboardx visdom
 
@@ -94,7 +94,7 @@ RUN cd /opt && \
     make install
 
 # BART
-RUN cd /opt/code && \
+RUN cd /opt && \
     git clone ${BART_URL} --branch ${BART_BRANCH} --single-branch && \
     cd bart && \
     mkdir build && \

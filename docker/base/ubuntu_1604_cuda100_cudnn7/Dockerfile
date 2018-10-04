@@ -1,4 +1,4 @@
-FROM nvidia/cuda:9.2-cudnn7-devel-ubuntu16.04
+FROM nvidia/cuda:10.0-cudnn7-devel-ubuntu16.04
 
 ARG BART_URL=https://github.com/mrirecon/bart
 ARG BART_BRANCH=master
@@ -33,7 +33,7 @@ RUN apt-get install --no-install-recommends --no-install-suggests --yes python3-
 RUN apt-get install --no-install-recommends --no-install-suggests --yes python3-configargparse
 RUN pip3 install Cython scipy tk-tools matplotlib==2.2.3 scikit-image opencv_python pydicom scikit-learn
 RUN apt-get install --no-install-recommends --no-install-suggests --yes python3-tk
-RUN pip3 uninstall -y h5py
+RUN pip3 uninstall h5py
 RUN apt-get install -y python3-h5py
 
 RUN pip3 install --upgrade tensorflow
@@ -93,8 +93,8 @@ RUN cd /opt && \
 ENV GADGETRON_HOME=/usr/local \
     ISMRMRD_HOME=/usr/local
 
-ENV PATH=$PATH:/usr/local/cuda-9.2/bin;$GADGETRON_HOME/bin:$ISMRMRD_HOME/bin \
-    LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-9.2/lib64:$ISMRMRD_HOME/lib:$GADGETRON_HOME/lib
+ENV PATH=$PATH:/usr/local/cuda/bin;$GADGETRON_HOME/bin:$ISMRMRD_HOME/bin \
+    LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64:$ISMRMRD_HOME/lib:$GADGETRON_HOME/lib
 
 ENV LIBRARY_PATH /usr/local/cuda/lib64/stubs:${LIBRARY_PATH}
 
