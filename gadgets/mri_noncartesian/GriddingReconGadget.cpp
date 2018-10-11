@@ -232,16 +232,17 @@ namespace Gadgetron {
 		//We have density compensation and iteration is set to false
 		if (!iterate.value() && dcw) { 
 
-			cuNFFT_plan<float,2> plan(from_std_vector<size_t,2>(image_dims_),image_dims_os_,kernel_width_);
+			cuNFFT_impl<float,2,ConvolutionType::STANDARD> plan(from_std_vector<size_t,2>(image_dims_),image_dims_os_,kernel_width_);
 			std::vector<size_t> recon_dims = image_dims_;
 			recon_dims.push_back(ncoils);
 			auto result = new cuNDArray<float_complext>(recon_dims);
 
 			std::vector<size_t> flat_dims = {traj->get_number_of_elements()};
 			cuNDArray<floatd2> flat_traj(flat_dims,traj->get_data_ptr());
+
 			
-			plan.preprocess(&flat_traj,cuNFFT_plan<float,2>::NFFT_PREP_NC2C);
-			plan.compute(data,result,dcw,cuNFFT_plan<float,2>::NFFT_BACKWARDS_NC2C);
+			plan.preprocess(&flat_traj,NFFT_prep_mode::NC2C);
+			plan.compute(data,result,dcw,NFFT_comp_mode::BACKWARDS_NC2C);
 
 			return boost::shared_ptr<cuNDArray<float_complext>>(result);
 			

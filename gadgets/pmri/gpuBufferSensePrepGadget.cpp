@@ -212,7 +212,7 @@ boost::shared_ptr<cuNDArray<float_complext> > gpuBufferSensePrepGadget::reconstr
 
 	if (dcw) { //We have density compensation, so we can get away with gridding
 
-		cuNFFT_plan<float,2> plan(from_std_vector<size_t,2>(image_dims_recon_),image_dims_recon_os_,kernel_width_);
+		cuNFFT_impl<float,2> plan(from_std_vector<size_t,2>(image_dims_recon_),image_dims_recon_os_,kernel_width_);
 		std::vector<size_t> csm_dims = image_dims_recon_;
 		csm_dims.push_back(ncoils);
 		auto result = new cuNDArray<float_complext>(csm_dims);
@@ -222,9 +222,9 @@ boost::shared_ptr<cuNDArray<float_complext> > gpuBufferSensePrepGadget::reconstr
 		cuNDArray<floatd2> flat_traj(flat_dims,traj->get_data_ptr());
 		GDEBUG("traj: %i data %i\n",traj->get_number_of_elements(),data->get_number_of_elements());
 		GDEBUG("Preprocessing\n\n");
-		plan.preprocess(&flat_traj,cuNFFT_plan<float,2>::NFFT_PREP_NC2C);
+		plan.preprocess(&flat_traj,NFFT_prep_mode::NC2C);
 		GDEBUG("Computing\n\n");
-		plan.compute(data,result,dcw,cuNFFT_plan<float,2>::NFFT_BACKWARDS_NC2C);
+		plan.compute(data,result,dcw,NFFT_comp_mode::BACKWARDS_NC2C);
 
 		return boost::shared_ptr<cuNDArray<float_complext>>(result);
 

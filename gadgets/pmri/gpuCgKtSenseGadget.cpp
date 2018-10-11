@@ -323,7 +323,7 @@ namespace Gadgetron{
     // Convolve to Cartesian k-space
     //
 
-    E_->get_plan()->convolve( &data, &image_os, &dcw, cuNFFT_plan<float,2>::NFFT_CONV_NC2C );
+    E_->get_plan()->convolve( &data, &image_os, &dcw, NFFT_conv_mode::NC2C );
 
     // Apply shutter
     //
@@ -337,7 +337,7 @@ namespace Gadgetron{
     }
 
     fill_border<float_complext,2>( shutter_radius_, &image_os );
-    E_->get_plan()->fft( &image_os, cuNFFT_plan<float,2>::NFFT_BACKWARDS );
+    E_->get_plan()->fft( &image_os, NFFT_fft_mode::BACKWARDS );
     E_->get_plan()->deapodize( &image_os );
 
     // Remove oversampling

@@ -94,6 +94,7 @@ namespace Gadgetron{
         int get_device();
 
         thrust::device_ptr<T> get_device_ptr();
+        const thrust::device_ptr<T> get_device_ptr() const;
         thrust::device_ptr<T> begin();
         thrust::device_ptr<T> end();
         const thrust::device_ptr<T> begin() const;
@@ -747,6 +748,12 @@ namespace Gadgetron{
 
     template <typename T> 
     inline thrust::device_ptr<T> cuNDArray<T>::get_device_ptr()
+    {
+        return thrust::device_ptr<T>(this->data_);
+    }
+
+    template <typename T>
+    inline const thrust::device_ptr<T> cuNDArray<T>::get_device_ptr() const
     {
         return thrust::device_ptr<T>(this->data_);
     }

@@ -87,7 +87,7 @@ namespace Gadgetron {
         std::vector<size_t> image_dimensions_recon_;
         uint64d2 image_dimensions_recon_os_;
 
-        cuNFFT_plan<float, 2> nfft_plan_;
+        cuNFFT_impl<float, 2> nfft_plan_;
         cuCgSolver<float_complext> cg_;
         boost::shared_ptr<cuNDArray<float_complext> > csm_;
         boost::shared_ptr<cuNonCartesianSenseOperator<float, 2> > E_;

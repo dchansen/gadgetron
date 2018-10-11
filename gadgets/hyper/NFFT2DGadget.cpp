@@ -175,8 +175,8 @@ namespace Gadgetron{
       //
       
       const float kernel_width = 5.5f;
-      cuNFFT_plan<float,2> plan( from_std_vector<size_t,2>(img_dims), from_std_vector<size_t,2>(img_dims)<<1, kernel_width );
-      plan.preprocess( traj.get(), cuNFFT_plan<float,2>::NFFT_PREP_NC2C );
+      cuNFFT_impl<float,2> plan( from_std_vector<size_t,2>(img_dims), from_std_vector<size_t,2>(img_dims)<<1, kernel_width );
+      plan.preprocess( traj.get(), NFFT_prep_mode::NC2C );
 /*
       if( dcw->get_number_of_elements() == 0 ){
         std::vector<size_t> dcw_dims; dcw_dims.push_back(samples_per_readout_);
@@ -192,7 +192,7 @@ namespace Gadgetron{
       
       plan.compute( &samples, &image,  
                     (dcw->get_number_of_elements()>0) ? dcw.get() : 0x0,
-                    cuNFFT_plan<float,2>::NFFT_BACKWARDS_NC2C );
+                    NFFT_comp_mode::BACKWARDS_NC2C );
 
 
       // Download to host

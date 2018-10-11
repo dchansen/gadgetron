@@ -153,16 +153,16 @@ boost::shared_ptr<cuNDArray<float_complext> > gpuCSICoilEstimationGadget::calcul
 	cuNDArray<floatd2> spiral_traj(spiral_traj_dims,traj->get_data_ptr());
 	if (dcw) { //We have density compensation, so we can get away with gridding
 
-		cuNFFT_plan<float,2> plan(from_std_vector<size_t,2>(img_size),from_std_vector<size_t,2>(img_size)*size_t(2),kernel_width_);
+		cuNFFT_impl<float,2> plan(from_std_vector<size_t,2>(img_size),from_std_vector<size_t,2>(img_size)*size_t(2),kernel_width_);
 		cuNDArray<float_complext> tmp(csm_dims);
 		GDEBUG("Coils %i \n\n",tmp.get_size(2));
 
 		cuNDArray<float> spiral_dcw(spiral_traj_dims,dcw->get_data_ptr());
 
 		GDEBUG("Preprocessing\n\n");
-		plan.preprocess(&spiral_traj,cuNFFT_plan<float,2>::NFFT_PREP_NC2C);
+		plan.preprocess(&spiral_traj,NFFT_prep_mode::NC2C);
 		GDEBUG("Computing\n\n");
-		plan.compute(&second_spiral,&tmp,&spiral_dcw,cuNFFT_plan<float,2>::NFFT_BACKWARDS_NC2C);
+		plan.compute(&second_spiral,&tmp,&spiral_dcw,NFFT_comp_mode::BACKWARDS_NC2C);
 		auto tmp_abs = abs(&tmp);
 
 		return estimate_b1_map<float,2>(&tmp);

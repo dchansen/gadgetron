@@ -6,12 +6,12 @@
 
 namespace Gadgetron{
 
-  template<class REAL, unsigned int D, bool ATOMICS>
-  cuBuffer<REAL,D,ATOMICS>::cuBuffer() 
+  template<class REAL, unsigned int D>
+  cuBuffer<REAL,D>::cuBuffer()
   {
     acc_buffer_ = boost::shared_ptr< cuNDArray<_complext> >(new cuNDArray<_complext>);
     cyc_buffer_ = boost::shared_ptr< cuNDArray<_complext> >(new cuNDArray<_complext>);
-    nfft_plan_  = boost::shared_ptr< cuNFFT_plan<REAL,D,ATOMICS> >(new cuNFFT_plan<REAL,D,ATOMICS>);
+    nfft_plan_  = make_cuNFFT_plan<REAL,D>();
     num_coils_ = 0;
     cur_idx_ = cur_sub_idx_ = 0;
     cycle_length_ = 0; sub_cycle_length_ = 0;
@@ -21,8 +21,8 @@ namespace Gadgetron{
     W_ = REAL(0);
   }
   
-  template<class REAL, unsigned int D, bool ATOMICS>
-  void cuBuffer<REAL,D,ATOMICS>::clear()
+  template<class REAL, unsigned int D>
+  void cuBuffer<REAL,D>::clear()
   {
     Gadgetron::clear(acc_buffer_.get());
     Gadgetron::clear(cyc_buffer_.get());
@@ -30,8 +30,8 @@ namespace Gadgetron{
     acc_buffer_empty_ = true;
   }
 
-  template<class REAL, unsigned int D, bool ATOMICS>
-  void cuBuffer<REAL,D,ATOMICS>
+  template<class REAL, unsigned int D>
+  void cuBuffer<REAL,D>
   ::setup( _uint64d matrix_size, _uint64d matrix_size_os, REAL W, 
            unsigned int num_coils, unsigned int num_cycles, unsigned int num_sub_cycles )
   {      
@@ -71,8 +71,8 @@ namespace Gadgetron{
     }
   }
   
-  template<class REAL, unsigned int D, bool ATOMICS> 
-  bool cuBuffer<REAL,D,ATOMICS>::add_frame_data( cuNDArray<_complext> *samples, cuNDArray<_reald> *trajectory )
+  template<class REAL, unsigned int D>
+  bool cuBuffer<REAL,D>::add_frame_data( cuNDArray<_complext> *samples, cuNDArray<_reald> *trajectory )
   {
     if( !samples || !trajectory ){
       throw std::runtime_error("cuBuffer::add_frame_data: illegal input pointer");
@@ -95,12 +95,12 @@ namespace Gadgetron{
     // Preprocess frame
     //
 
-    nfft_plan_->preprocess( trajectory, cuNFFT_plan<REAL,D,ATOMICS>::NFFT_PREP_NC2C );
+    nfft_plan_->preprocess( trajectory, NFFT_prep_mode::NC2C );
     
     // Convolve to form k-space frame (accumulation mode)
     //
     
-    nfft_plan_->convolve( samples, &cur_buffer, dcw_.get(), cuNFFT_plan<REAL,D,ATOMICS>::NFFT_CONV_NC2C, true );
+    nfft_plan_->convolve( samples, &cur_buffer, dcw_.get(), NFFT_conv_mode::NC2C, true );
 
     // Update the accumulation buffer (if it is time...)
     //
@@ -141,8 +141,8 @@ namespace Gadgetron{
     return cycle_completed;
   }
 
-  template<class REAL, unsigned int D, bool ATOMICS>
-  boost::shared_ptr< cuNDArray<complext<REAL> > > cuBuffer<REAL,D,ATOMICS>::get_accumulated_coil_images()
+  template<class REAL, unsigned int D>
+  boost::shared_ptr< cuNDArray<complext<REAL> > > cuBuffer<REAL,D>::get_accumulated_coil_images()
   {
     std::vector<size_t> dims = to_std_vector(matrix_size_);
     dims.push_back(num_coils_);
@@ -162,7 +162,7 @@ namespace Gadgetron{
     cuNDArray<_complext> acc_copy = *acc_buffer_;
 
     // FFT
-    nfft_plan_->fft( &acc_copy, cuNFFT_plan<REAL,D,ATOMICS>::NFFT_BACKWARDS );
+    nfft_plan_->fft( &acc_copy, NFFT_fft_mode::BACKWARDS );
     
     // Deapodize
     nfft_plan_->deapodize( &acc_copy );
@@ -182,16 +182,11 @@ namespace Gadgetron{
   // Instantiations
   //
   
-  template class EXPORTGPUPMRI cuBuffer<float,2,true>;
-  template class EXPORTGPUPMRI cuBuffer<float,2,false>;
-  
-  template class EXPORTGPUPMRI cuBuffer<float,3,true>;
-  template class EXPORTGPUPMRI cuBuffer<float,3,false>;
-  
-  template class EXPORTGPUPMRI cuBuffer<float,4,true>;
-  template class EXPORTGPUPMRI cuBuffer<float,4,false>;
-  
-  template class EXPORTGPUPMRI cuBuffer<double,2,false>;
-  template class EXPORTGPUPMRI cuBuffer<double,3,false>;
-  template class EXPORTGPUPMRI cuBuffer<double,4,false>;
+  template class EXPORTGPUPMRI cuBuffer<float,2>;
+  template class EXPORTGPUPMRI cuBuffer<float,3>;
+  template class EXPORTGPUPMRI cuBuffer<float,4>;
+
+  template class EXPORTGPUPMRI cuBuffer<double,2>;
+  template class EXPORTGPUPMRI cuBuffer<double,3>;
+  template class EXPORTGPUPMRI cuBuffer<double,4>;
 }

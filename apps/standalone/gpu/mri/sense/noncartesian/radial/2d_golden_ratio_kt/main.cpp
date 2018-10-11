@@ -236,12 +236,12 @@ int main(int argc, char** argv)
     E->set_codomain_dimensions(data->get_dimensions().get());    
 
     // Convolve to Cartesian k-space
-    E->get_plan()->convolve( data.get(), image_os, dcw.get(), cuNFFT_plan<_real,2>::NFFT_CONV_NC2C );
+    E->get_plan()->convolve( data.get(), image_os, dcw.get(), NFFT_conv_mode::NC2C );
 
     // Apply shutter
     fill_border<_complext,2>( shutter_radius, image_os );
 
-    E->get_plan()->fft( image_os, cuNFFT_plan<_real,2>::NFFT_BACKWARDS );
+    E->get_plan()->fft( image_os, NFFT_fft_mode::BACKWARDS );
     E->get_plan()->deapodize( image_os );
 
     // Remove oversampling
