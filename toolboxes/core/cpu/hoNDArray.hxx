@@ -10,13 +10,13 @@ namespace Gadgetron
     }
 
     template <typename T> 
-    hoNDArray<T>::hoNDArray(std::vector<size_t> *dimensions) : NDArray<T>::NDArray()
+    hoNDArray<T>::hoNDArray(const std::vector<size_t> *dimensions) : NDArray<T>::NDArray()
     {
         this->create(dimensions);
     }
 
     template <typename T> 
-    hoNDArray<T>::hoNDArray(std::vector<size_t> &dimensions) : NDArray<T>::NDArray()
+    hoNDArray<T>::hoNDArray(const std::vector<size_t> &dimensions) : NDArray<T>::NDArray()
     {
         this->create(dimensions);
     }
@@ -128,13 +128,13 @@ namespace Gadgetron
     }
 
     template <typename T> 
-    hoNDArray<T>::hoNDArray(std::vector<size_t> *dimensions, T* data, bool delete_data_on_destruct) : NDArray<T>::NDArray()
+    hoNDArray<T>::hoNDArray(const std::vector<size_t> *dimensions, T* data, bool delete_data_on_destruct) : NDArray<T>::NDArray()
     {
         this->create(dimensions,data,delete_data_on_destruct);
     }
 
     template <typename T> 
-    hoNDArray<T>::hoNDArray(std::vector<size_t> &dimensions, T* data, bool delete_data_on_destruct) : NDArray<T>::NDArray()
+    hoNDArray<T>::hoNDArray(const std::vector<size_t> &dimensions, T* data, bool delete_data_on_destruct) : NDArray<T>::NDArray()
     {
         this->create(dimensions,data,delete_data_on_destruct);
     }
@@ -341,7 +341,7 @@ namespace Gadgetron
 #endif
 
     template <typename T> 
-    void hoNDArray<T>::create(std::vector<size_t>& dimensions)
+    void hoNDArray<T>::create(const std::vector<size_t>& dimensions)
     {
         if ( this->dimensions_equal(&dimensions) )
         {
@@ -353,7 +353,7 @@ namespace Gadgetron
     }
 
     template <typename T> 
-    void hoNDArray<T>::create(std::vector<size_t> *dimensions)
+    void hoNDArray<T>::create(const std::vector<size_t> *dimensions)
     {
         if ( this->dimensions_equal(dimensions) )
         {
@@ -375,7 +375,7 @@ namespace Gadgetron
     }
 
     template <typename T> 
-    void hoNDArray<T>::create(std::vector<size_t> *dimensions, T* data, bool delete_data_on_destruct) 
+    void hoNDArray<T>::create(const std::vector<size_t> *dimensions, T* data, bool delete_data_on_destruct)
     {
         if(!dimensions) throw std::runtime_error("hoNDArray<T>::create(): 0x0 pointer provided");
         if(!data) throw std::runtime_error("hoNDArray<T>::create(): 0x0 pointer provided");
@@ -403,7 +403,7 @@ namespace Gadgetron
     }
 
     template <typename T> 
-    void hoNDArray<T>::create(std::vector<size_t> &dimensions, T* data, bool delete_data_on_destruct) 
+    void hoNDArray<T>::create(const std::vector<size_t> &dimensions, T* data, bool delete_data_on_destruct)
     {
         if(!data) throw std::runtime_error("hoNDArray<T>::create(): 0x0 pointer provided");
 

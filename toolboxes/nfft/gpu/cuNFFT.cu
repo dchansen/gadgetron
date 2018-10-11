@@ -1241,23 +1241,26 @@ void cuNFFT::convolverNC2C<REAL, D, ConvolutionType::STANDARD>::convolve_NC2C(cu
     //
     cudaFuncSetCacheConfig(NFFT_H_convolve_kernel<REAL,D>, cudaFuncCachePreferShared);
 
-    std::vector<size_t> permutation(samples->get_number_of_dimensions());
-    permutation.front() = samples->get_number_of_dimensions()-1;
-    std::iota(permutation.begin()+1,permutation.end(),0);
-    auto samples_permuted = permute(samples,&permutation);
-
     for (unsigned int repetition = 0; repetition < num_repetitions; repetition++) {
+
+        size_t num_coils = (repetition == num_repetitions - 1) ? domain_size_coils_tail : domain_size_coils;
+
+        auto samples_view = cuNDArray<complext<REAL>>(std::vector<size_t>{number_of_samples, number_of_frames,num_coils},
+                samples->get_data_ptr()+repetition * number_of_samples * number_of_frames * domain_size_coils);
+
+        std::vector<size_t> permuation = {2,0,1};
+        auto samples_permuted = permute(&samples_view,&permuation);
 
         NFFT_H_convolve_kernel<REAL, D>
                 << < dimGrid, dimBlock,
                 ((repetition == num_repetitions - 1) ? dimBlock.x * bytes_per_thread_tail : dimBlock.x *
                                                                                             bytes_per_thread) >> >
                 (alpha, beta, W, vector_td<unsigned int, D>(matrix_size_os + matrix_size_wrap), number_of_samples,
-                        (repetition == num_repetitions - 1) ? domain_size_coils_tail : domain_size_coils,
+                        num_coils,
                         raw_pointer_cast(&trajectory_positions[0]),
                         tmp_image.get_data_ptr() +
                         repetition * prod(matrix_size_os + matrix_size_wrap) * number_of_frames * domain_size_coils,
-                        samples_permuted->get_data_ptr() + repetition * number_of_samples * number_of_frames * domain_size_coils,
+                        samples_permuted->get_data_ptr(),
                         raw_pointer_cast(&tuples_last[0]), raw_pointer_cast(&bucket_begin[0]), raw_pointer_cast(
                         &bucket_end[0]),
                         double_warp_size_power, REAL(0.5) * W, REAL(1) / (W), matrix_size_os_real);
@@ -1460,27 +1463,36 @@ void Gadgetron::cuNFFT::convolverC2NC<REAL,D,CONV>::convolve_C2NC(Gadgetron::cuN
         double_warp_size_power++;
     }
 
-    vector_td<REAL, D>
-    matrix_size_os_real = vector_td<REAL, D>(plan->matrix_size_os);
-    std::vector<size_t> permutation(image->get_number_of_dimensions());
-    permutation.front() = image->get_number_of_dimensions()-1;
-    std::iota(permutation.begin()+1,permutation.end(),0);
-    auto image_permuted = permute(image,&permutation);
+    auto matrix_size_os_real = vector_td<REAL, D>(plan->matrix_size_os);
     /*
       Invoke kernel
     */
 
     for (unsigned int repetition = 0; repetition < num_repetitions; repetition++) {
+
+        size_t num_coils = (repetition == num_repetitions - 1) ? domain_size_coils_tail : domain_size_coils;
+        auto image_dims = to_std_vector(plan->matrix_size_os);
+        image_dims.push_back(number_of_frames);
+        image_dims.push_back(num_coils);
+        size_t image_view_elements = std::accumulate(image_dims.begin(),image_dims.end(),size_t(1),std::multiplies<size_t>());
+        auto image_view = cuNDArray<complext<REAL>>(image_dims, image->get_data_ptr()+repetition*image_view_elements);
+
+        auto permutation = std::vector<size_t>(D+2);
+        permutation[0] = D+1;
+        std::iota(permutation.begin()+1,permutation.end(),0);
+
+        auto image_permuted  = permute(&image_view,&permutation);
+
+
         NFFT_convolve_kernel<REAL, D>
                 << < dimGrid, dimBlock,
                 ((repetition == num_repetitions - 1) ? dimBlock.x * bytes_per_thread_tail : dimBlock.x *
                                                                                             bytes_per_thread) >> >
                 (plan->alpha, plan->beta, plan->W, vector_td<unsigned int, D>(plan->matrix_size_os), vector_td<unsigned int, D>(
                         plan->matrix_size_wrap), number_of_samples,
-                        (repetition == num_repetitions - 1) ? domain_size_coils_tail : domain_size_coils,
+                        num_coils,
                         raw_pointer_cast(&plan->trajectory_positions[0]),
-                        image_permuted->get_data_ptr() +
-                        repetition * prod(plan->matrix_size_os) * number_of_frames * domain_size_coils,
+                        image_permuted->get_data_ptr(),
                         samples->get_data_ptr() + repetition * number_of_samples * number_of_frames * domain_size_coils,
                         double_warp_size_power, REAL(0.5) * plan->W, REAL(1) /
                                                                      (plan->W), accumulate, matrix_size_os_real);
