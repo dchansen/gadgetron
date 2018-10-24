@@ -280,7 +280,7 @@ namespace Gadgetron {
 //#endif
           for (size_t outer_idx = 0; outer_idx < outer_elements; outer_idx++) {
 
-              for (long long idx = 0; idx < (long long) inner_elements; idx++) {
+              for (size_t idx = 0; idx < inner_elements; idx++) {
                   size_t offset = outer_idx*inner_elements;
                   size_t old_offset = offset*number_of_batches;
                   T val = in->at(idx+old_offset);

@@ -18,564 +18,404 @@
 #include <stdexcept>
 #include <boost/make_shared.hpp>
 
+#include "hoNFFT_sparseMatrix.h"
+#include <boost/math/constants/constants.hpp>
+#include <KaiserBessel_kernel.h>
+#include <boost/range/algorithm/transform.hpp>
+
+#include <cpu/hoNDArray_fileio.h>
+#include "GadgetronTimer.h"
+
 using namespace std;
 
-namespace Gadgetron{
+namespace Gadgetron {
 
-    template<class Real, unsigned int D>
-    hoNFFT_plan<Real, D>::hoNFFT_plan()
-    {
-        throw std::runtime_error("Default constructor is not available");
+
+    namespace {
+
+        template<typename T, unsigned int D>
+        struct FFT {
+        };
+
+        template<typename T>
+        struct FFT<T, 1> {
+            using REAL = typename realType<T>::Type;
+
+            static void fft(hoNDArray<T> &array, NFFT_fft_mode mode) {
+                if (mode == NFFT_fft_mode::FORWARDS) {
+                    hoNDFFT<REAL>::instance()->fft1c(array);
+                } else {
+                    hoNDFFT<REAL>::instance()->ifft1c(array);
+                }
+            }
+        };
+
+        template<typename T>
+        struct FFT<T, 2> {
+            using REAL = typename realType<T>::Type;
+
+            static void fft(hoNDArray<T> &array, NFFT_fft_mode mode) {
+                if (mode == NFFT_fft_mode::FORWARDS) {
+                    hoNDFFT<REAL>::instance()->fft2c(array);
+                } else {
+                    hoNDFFT<REAL>::instance()->ifft2c(array);
+                }
+            }
+        };
+
+        template<typename T>
+        struct FFT<T, 3> {
+            using REAL = typename realType<T>::Type;
+
+            static void fft(hoNDArray<T> &array, NFFT_fft_mode mode) {
+                if (mode == NFFT_fft_mode::FORWARDS) {
+                    hoNDFFT<REAL>::instance()->fft3c(array);
+                } else {
+                    hoNDFFT<REAL>::instance()->ifft3c(array);
+                }
+            }
+        };
+
+        template<class REAL> hoNDArray<std::complex<REAL>>
+        compute_deapodization_filter(const vector_td<size_t,1>& image_dims, const vector_td<REAL,1>& beta, REAL W){
+
+            hoNDArray<std::complex<REAL>> deapodization(to_std_vector(image_dims));
+            vector_td<REAL,1> image_dims_real(image_dims);
+            for (int x = 0; x < image_dims[0]; x++){
+                auto offset = x - image_dims_real[0]/2;
+                deapodization(x) = std::abs(offset) < W/2 ? KaiserBessel(offset,image_dims_real[0],REAL(1)/W,beta[0]) : REAL(0);
+            }
+            return deapodization;
+        }
+        template<class REAL> hoNDArray<std::complex<REAL>>
+        compute_deapodization_filter(const vector_td<size_t,2>& image_dims, const vector_td<REAL,2>& beta, REAL W){
+
+            hoNDArray<std::complex<REAL>> deapodization(to_std_vector(image_dims));
+            vector_td<REAL,2> image_dims_real(image_dims);
+            for (int y = 0; y < image_dims[1]; y++) {
+                auto offset_y = y - image_dims_real[1]/2;
+                auto weight_y = std::abs(offset_y) < W/2 ? KaiserBessel(offset_y,image_dims_real[1],REAL(1)/W,beta[1]) : REAL(0);
+
+                for (int x = 0; x < image_dims[0]; x++) {
+                    auto offset_x = x - image_dims_real[0]/2;
+                    auto weight_x = std::abs(offset_x) < W/2 ? KaiserBessel(offset_x,image_dims_real[0],REAL(1)/W,beta[0]) : REAL(0);
+
+                    deapodization(x,y) = weight_x*weight_y;
+                }
+            }
+            return deapodization;
+        }
+
+         template<class REAL> hoNDArray<std::complex<REAL>>
+        compute_deapodization_filter(const vector_td<size_t,3>& image_dims, const vector_td<REAL,3>& beta, REAL W){
+
+            hoNDArray<std::complex<REAL>> deapodization(to_std_vector(image_dims));
+            vector_td<REAL,3> image_dims_real(image_dims);
+            for (int z = 0; z < image_dims[2]; z++) {
+                auto offset_z = z - image_dims_real[2]/2;
+                auto weight_z = std::abs(offset_z) < W/2 ? KaiserBessel(offset_z,image_dims_real[2],REAL(1)/W,beta[2]) : REAL(0);
+
+                for (int y = 0; y < image_dims[1]; y++) {
+                    auto offset_y = y - image_dims_real[1]/2;
+                    auto weight_y = std::abs(offset_y) < W/2 ? KaiserBessel(offset_y,image_dims_real[1],REAL(1)/W,beta[1]) : REAL(0);
+
+                    for (int x = 0; x < image_dims[0]; x++) {
+                        auto offset_x = x - image_dims_real[0]/2;
+                        auto weight_x = std::abs(offset_x) < W/2 ? KaiserBessel(offset_x,image_dims_real[0],REAL(1)/W,beta[0]) : REAL(0);
+
+                        deapodization(x,y,z) = weight_x*weight_y*weight_z;
+                    }
+                }
+            }
+            return deapodization;
+        }
     }
 
-    template<class Real, unsigned int D>
-    hoNFFT_plan<Real, D>::hoNFFT_plan(
-        typename uint64d<D>::Type n,
-        Real osf,
-        Real wg
-    )
-    {
-        if(osf < Real(1.0))
-            throw std::runtime_error("Oversampling factor must be larger than 1");
 
-        if(wg < Real(1.0))
+
+    template<class REAL, unsigned int D>
+    hoNFFT_plan<REAL, D>::hoNFFT_plan(
+            const vector_td<size_t, D> &matrix_size,
+            const vector_td<size_t, D> &matrix_size_os,
+            REAL W
+    ) {
+
+        if (W < REAL(1.0))
             throw std::runtime_error("Kernel width must be larger than 1");
+        if (matrix_size > matrix_size_os)
+            throw std::runtime_error("Oversampled matrix size must be as least as great as the matrix size");
 
-        for(size_t i = 0; i < D; i++)
-            if(n[i] < 0) 
-                throw std::runtime_error("Matrix size must be positive");
 
-        auto v = n[0];
-        for(size_t i = 0; i < D; i++)
-            if(n[i] != v)
-                throw std::runtime_error("Matrix dimensions must be equal");
+        this->W = W;
+        this->matrix_size = matrix_size;
+        this->matrix_size_os = matrix_size_os;
 
-        this->n = n;
-        this->osf = osf;
-        this->wg = wg;
+        this->beta = compute_beta(W,matrix_size,matrix_size_os);
+        this->deapodization_filter_IFFT = compute_deapodization_filter(this->matrix_size_os,this->beta, this->W);
+        this->deapodization_filter_FFT = deapodization_filter_IFFT;
+        FFT<std::complex<REAL>,D>::fft(deapodization_filter_IFFT,NFFT_fft_mode::BACKWARDS);
+        FFT<std::complex<REAL>,D>::fft(deapodization_filter_FFT,NFFT_fft_mode::FORWARDS);
+
+        boost::transform(deapodization_filter_IFFT,deapodization_filter_IFFT.begin(),[](auto val){return REAL(1)/val;});
+        boost::transform(deapodization_filter_FFT,deapodization_filter_FFT.begin(),[](auto val){return REAL(1)/val;});
     }
 
-    template<class Real, unsigned int D>
-    hoNFFT_plan<Real, D>::~hoNFFT_plan()
-    {
-        // Empty destructor
+    template<class REAL, unsigned int D>
+    hoNFFT_plan<REAL, D>::hoNFFT_plan(const vector_td<size_t, D> &matrix_size, REAL oversampling_factor, REAL W) {
+
+        this->matrix_size = matrix_size;
+        this->W = W;
+        this->matrix_size_os = vector_td<size_t,D>(vector_td<REAL,D>(matrix_size)*oversampling_factor);
+
+        this->beta = compute_beta(W,matrix_size,matrix_size_os);
+         this->deapodization_filter_IFFT = compute_deapodization_filter(this->matrix_size_os,this->beta, this->W);
+        this->deapodization_filter_FFT = deapodization_filter_IFFT;
+
+        FFT<std::complex<REAL>,D>::fft(deapodization_filter_IFFT,NFFT_fft_mode::BACKWARDS);
+        FFT<std::complex<REAL>,D>::fft(deapodization_filter_FFT,NFFT_fft_mode::FORWARDS);
+//        write_nd_array(abs(&deapodization_filter_IFFT).get(),"deapodization.real");
+
+//        write_nd_array(abs(&deapodization_filter_IFFT).get(),"deapodization.real");
+        boost::transform(deapodization_filter_IFFT,deapodization_filter_IFFT.begin(),[](auto val){return REAL(1)/val;});
+        boost::transform(deapodization_filter_FFT,deapodization_filter_FFT.begin(),[](auto val){return REAL(1)/val;});
     }
 
-    template<class Real, unsigned int D>
-    void hoNFFT_plan<Real, D>::preprocess(
-        const hoNDArray<typename reald<Real, D>::Type>& k
-    )
-    {
-        if(k.get_number_of_elements() == 0)
-            throw std::runtime_error("Empty Trajectory");
 
-        for(auto it: k)
-            for(size_t i = 0; i < D; i++)
-                if(it[i] > Real(0.5) || it[i] < Real(-0.5))
-                 throw std::runtime_error("Trajectory must be between [-0.5,0.5]");
+    template<class REAL, unsigned int D>
+    void hoNFFT_plan<REAL, D>::preprocess(
+            const hoNDArray<vector_td<REAL, D>> &trajectories) {
 
-        this->k = k;
-        initialize();
+        GadgetronTimer timer("Preprocess");
+        auto trajectories_scaled = trajectories;
+        auto matrix_size_os_real = vector_td<REAL,D>(matrix_size_os);
+        std::transform(trajectories_scaled.begin(),trajectories_scaled.end(),trajectories_scaled.begin(),[matrix_size_os_real](auto point){
+           return (point+REAL(0.5))*matrix_size_os_real;
+        });
+
+        convolution_matrix = NFFT::make_NFFT_matrix(trajectories_scaled, this->matrix_size_os, W, beta);
+        convolution_matrix_T = NFFT::transpose(convolution_matrix);
+
     }
 
-    template<class Real, unsigned int D>
-    void hoNFFT_plan<Real, D>::compute(
-        hoNDArray<complext<Real>> &d,
-        hoNDArray<complext<Real>> &m,
-        hoNDArray<Real>& w,
-        NFFT_comp_mode mode
-    )
-    {
-        hoNDArray<ComplexType>* pd = reinterpret_cast<hoNDArray<ComplexType>*>(&d);
-        hoNDArray<ComplexType>* pm = reinterpret_cast<hoNDArray<ComplexType>*>(&m);
+    template<class REAL, unsigned int D>
+    void hoNFFT_plan<REAL, D>::compute(
+            const hoNDArray<complext<REAL>> &d,
+            hoNDArray<complext<REAL>> &m,
+            const hoNDArray<REAL> *dcw,
+            NFFT_comp_mode mode
+    ) {
+        const hoNDArray<ComplexType> *pd = reinterpret_cast<const hoNDArray<ComplexType> *>(&d);
+        hoNDArray<ComplexType> *pm = reinterpret_cast<hoNDArray<ComplexType> *>(&m);
 
-        this->compute(*pd, *pm, w, mode);
+        this->compute(*pd, *pm, dcw, mode);
     }
 
-    template<class Real, unsigned int D>
-    void hoNFFT_plan<Real, D>::compute(
-        hoNDArray<ComplexType> &d,
-        hoNDArray<ComplexType> &m,
-        hoNDArray<Real>& w,
-        NFFT_comp_mode mode
-    )
-    {
-        if(d.get_number_of_elements() == 0)
+    template<class REAL, unsigned int D>
+    void hoNFFT_plan<REAL, D>::compute(
+            const hoNDArray<ComplexType> &d,
+            hoNDArray<ComplexType> &m,
+            const hoNDArray<REAL>* dcw,
+            NFFT_comp_mode mode
+    ) {
+        if (d.get_number_of_elements() == 0)
             throw std::runtime_error("Empty data");
 
-        if(m.get_number_of_elements() == 0)
+        if (m.get_number_of_elements() == 0)
             throw std::runtime_error("Empty gridding matrix");
 
-        switch(mode){
-            case NFFT_FORWARDS_C2NC:{
-                deapodize(d, true);
-                fft(d, NFFT_FORWARDS);
-                convolve(d, m, NFFT_CONV_C2NC);
-                
-                if(w.get_number_of_elements() != 0){
-                    if(m.get_number_of_elements() != w.get_number_of_elements())
-                        throw std::runtime_error("Incompatible dimensions");
+        hoNDArray<ComplexType> dtmp(d);
 
-                    m /= w;
-                }
+        switch (mode) {
+            case NFFT_comp_mode::FORWARDS_C2NC: {
+
+                deapodize(dtmp, false);
+                fft(dtmp, NFFT_fft_mode::FORWARDS);
+                convolve(dtmp, m, NFFT_conv_mode::C2NC);
+
+                if(dcw) m *= *dcw;
                 break;
             }
-            case NFFT_FORWARDS_NC2C:{
-                if(w.get_number_of_elements() != 0){
-                    if(w.get_number_of_elements() != d.get_number_of_elements())
-                        throw std::runtime_error("Incompitalbe dimensions");
+            case NFFT_comp_mode::FORWARDS_NC2C: {
 
-                    d *= w;
-                }
-                
-                convolve(d, m, NFFT_CONV_NC2C);
-                fft(m, NFFT_FORWARDS);
+                if (dcw) dtmp *= *dcw;
+
+                convolve(dtmp, m, NFFT_conv_mode::NC2C);
+                fft(m, NFFT_fft_mode::FORWARDS);
                 deapodize(m, true);
 
                 break;
             }
-            case NFFT_BACKWARDS_NC2C:{
-                if(w.get_number_of_elements() != 0){
-                    if(w.get_number_of_elements() != d.get_number_of_elements())
-                        throw std::runtime_error("Incompatible dimensions");
+            case NFFT_comp_mode::BACKWARDS_NC2C: {
 
-                    d *= w;
-                }
 
-                convolve(d, m, NFFT_CONV_NC2C);
-                fft(m, NFFT_BACKWARDS);
-                deapodize(m);
+                if (dcw) dtmp *= *dcw;
+                convolve(dtmp, m, NFFT_conv_mode::NC2C);
+                fft(m, NFFT_fft_mode::BACKWARDS);
+                deapodize(m,false);
 
                 break;
             }
-            case NFFT_BACKWARDS_C2NC:{
-                deapodize(d, true);
-                fft(d, NFFT_BACKWARDS);
-                convolve(d, m, NFFT_CONV_C2NC);
+            case NFFT_comp_mode::BACKWARDS_C2NC: {
 
-                if(w.get_number_of_elements() != 0){
-                    if(w.get_number_of_elements() != m.get_number_of_elements())
-                        throw std::runtime_error("Incompatible dimensions");
+                deapodize(dtmp, true);
+                fft(dtmp, NFFT_fft_mode::BACKWARDS);
+                convolve(d, m, NFFT_conv_mode::C2NC);
 
-                    m *= w;
-                }
+                if (dcw) m *= *dcw;
                 break;
             }
         };
     }
 
-    template<class Real, unsigned int D>
-    void hoNFFT_plan<Real, D>::mult_MH_M(
-        hoNDArray<complext<Real>> &in,
-        hoNDArray<complext<Real>> &out
-    )
-    {
-        hoNDArray<ComplexType>* pin = reinterpret_cast<hoNDArray<ComplexType>*>(&in);
-        hoNDArray<ComplexType>* pout = reinterpret_cast<hoNDArray<ComplexType>*>(&out);
+    template<class REAL, unsigned int D>
+    void hoNFFT_plan<REAL, D>::mult_MH_M(
+            hoNDArray<complext<REAL>> &in,
+            hoNDArray<complext<REAL>> &out
+    ) {
+        hoNDArray<ComplexType> *pin = reinterpret_cast<hoNDArray<ComplexType> *>(&in);
+        hoNDArray<ComplexType> *pout = reinterpret_cast<hoNDArray<ComplexType> *>(&out);
 
         this->mult_MH_M(*pin, *pout);
     }
 
-    template<class Real, unsigned int D>
-    void hoNFFT_plan<Real, D>::mult_MH_M(
-        hoNDArray<ComplexType> &in,
-        hoNDArray<ComplexType> &out
-    )
-    {
-        hoNDArray<Real> w((size_t)0);
-        hoNDArray<ComplexType> tmp;
-        tmp.create(n[0]*osf,n[1]*osf);
-        compute(in, tmp, w, NFFT_BACKWARDS_NC2C);
-        compute(tmp, out, w, NFFT_FORWARDS_C2NC);
+    template<class REAL, unsigned int D>
+    void hoNFFT_plan<REAL, D>::mult_MH_M(
+            hoNDArray<ComplexType> &in,
+            hoNDArray<ComplexType> &out
+    ) {
+        hoNDArray<ComplexType> tmp(to_std_vector(matrix_size_os));
+        compute(in, tmp, density_compensation_weights.get(), NFFT_comp_mode::BACKWARDS_NC2C);
+        compute(tmp, out,density_compensation_weights.get(), NFFT_comp_mode::FORWARDS_C2NC);
     }
 
-    template<class Real, unsigned int D>
-    void hoNFFT_plan<Real, D>::convolve(
-        hoNDArray<ComplexType> &d,
-        hoNDArray<ComplexType> &m,
-        NFFT_conv_mode mode
-    )
-    {
-        if(mode == NFFT_CONV_NC2C)
+    template<class REAL, unsigned int D>
+    void hoNFFT_plan<REAL, D>::convolve(
+            const hoNDArray<ComplexType> &d,
+            hoNDArray<ComplexType> &m,
+            NFFT_conv_mode mode
+    ) {
+        if (mode == NFFT_conv_mode::NC2C)
             convolve_NFFT_NC2C(d, m);
         else
             convolve_NFFT_C2NC(d, m);
     }
 
-    template<class Real, unsigned int D>
-    void hoNFFT_plan<Real, D>::fft(
-        hoNDArray<ComplexType> &d,
-        NFFT_fft_mode mode
-    )
-    {
-        if(D==1)
-        {
-            if (mode == NFFT_FORWARDS)
-                hoNDFFT<Real>::instance()->fft1c(d);
-            else
-                hoNDFFT<Real>::instance()->ifft1c(d);
-        }
-        else if(D==2)
-        {
-            if (mode == NFFT_FORWARDS)
-                hoNDFFT<Real>::instance()->fft2c(d);
-            else
-                hoNDFFT<Real>::instance()->ifft2c(d);
-        }
-        else if(D==3)
-        {
-            if (mode == NFFT_FORWARDS)
-                hoNDFFT<Real>::instance()->fft3c(d);
-            else
-                hoNDFFT<Real>::instance()->ifft3c(d);
-        }
-        else
-        {
-            if(mode == NFFT_FORWARDS)
-                hoNDFFT<Real>::instance()->fft(&d);
-            else
-                hoNDFFT<Real>::instance()->ifft(&d);
+    template<class REAL, unsigned int D>
+    void hoNFFT_plan<REAL, D>::fft(
+            hoNDArray<ComplexType> &d,
+            NFFT_fft_mode mode
+    ) {
+        GadgetronTimer timer("FFT");
+        FFT<std::complex<REAL>, D>::fft(d, mode);
+    }
+
+    template<class REAL, unsigned int D>
+    void hoNFFT_plan<REAL, D>::deapodize(
+            hoNDArray<ComplexType> &d,
+            bool fourierDomain
+    ) {
+        if (fourierDomain){
+            d *= deapodization_filter_FFT;
+        } else {
+            d *= deapodization_filter_IFFT;
         }
     }
 
-    template<class Real, unsigned int D>
-    void hoNFFT_plan<Real, D>::deapodize(
-        hoNDArray<ComplexType> &d,
-        bool fourierDomain
-    )
-    {
-        if(fourierDomain){
-            if(da.get_number_of_elements() != d.get_number_of_elements())
-                throw std::runtime_error("Incompatiblef deapodization dimensions");
-            
-            d *= da;
-        }else{
-            if(da.get_number_of_elements() != d.get_number_of_elements())
-                throw std::runtime_error("Incompatible deapodization dimensions");
 
-            d /= da;
+
+    namespace {
+        template<class REAL> void
+        matrix_vector_multiply(const Gadgetron::NFFT::NFFT_Matrix<REAL>& matrix, const std::complex<REAL>* vector, std::complex<REAL>* result) {
+
+            for (size_t i = 0; i < matrix.n_cols; i++) {
+                auto &row_indices = matrix.indices[i];
+                auto &weights = matrix.weights[i];
+#pragma omp simd
+                for (size_t n = 0; n < row_indices.size(); n++) {
+                    result[i] += vector[row_indices[n]] * weights[n];
+                }
+            }
+        }
+
+    }
+    template<class REAL, unsigned int D>
+    void hoNFFT_plan<REAL, D>::convolve_NFFT_C2NC(
+            const hoNDArray<ComplexType> &cartesian,
+            hoNDArray<ComplexType> &non_cartesian
+    ) {
+
+        size_t nbatches = cartesian.get_number_of_elements()/convolution_matrix.n_rows;
+        assert(nbatches == non_cartesian.get_number_of_elements()/convolution_matrix.n_cols);
+
+        clear(&non_cartesian);
+        for (size_t b = 0; b < nbatches; b++) {
+
+            const ComplexType* cartesian_view = cartesian.get_data_ptr()+b*convolution_matrix.n_rows;
+            ComplexType* non_cartesian_view = non_cartesian.get_data_ptr()+b*convolution_matrix.n_cols;
+
+            matrix_vector_multiply(convolution_matrix,cartesian_view,non_cartesian_view);
+        }
+
+    }
+
+    template<class REAL, unsigned int D>
+    void hoNFFT_plan<REAL, D>::convolve_NFFT_NC2C(
+            const hoNDArray<ComplexType> &non_cartesian,
+            hoNDArray<ComplexType> &cartesian
+    ) {
+                size_t nbatches = cartesian.get_number_of_elements()/convolution_matrix.n_rows;
+        assert(nbatches == non_cartesian.get_number_of_elements()/convolution_matrix.n_cols);
+        GadgetronTimer timer("Convolution");
+        clear(&cartesian);
+#pragma omp parallel for
+        for (size_t b = 0; b < nbatches; b++) {
+
+            ComplexType *cartesian_view = cartesian.get_data_ptr() + b * convolution_matrix.n_rows;
+            const ComplexType *non_cartesian_view = non_cartesian.get_data_ptr() + b * convolution_matrix.n_cols;
+
+            matrix_vector_multiply(convolution_matrix_T, non_cartesian_view, cartesian_view);
+
         }
     }
 
-    template<class Real, unsigned int D>
-    void hoNFFT_plan<Real, D>::initialize(){
-        kw = wg/osf;
-        kosf = std::floor(0.91/(osf*1e-3));
-        kwidth = osf*kw/2;
 
-        Real tmp = kw*(osf-0.5);
-        beta = M_PI*std::sqrt(tmp*tmp-0.8);
+    template<class REAL, unsigned int D>
+    vector_td<REAL, D> hoNFFT_plan<REAL, D>::compute_beta(REAL W, const Gadgetron::vector_td<size_t, D> &matrix_size,
+                                                          const Gadgetron::vector_td<size_t, D> &matrix_size_os) {
+        // Compute Kaiser-Bessel beta paramter according to the formula provided in
+        // Beatty et. al. IEEE TMI 2005;24(6):799-808.
+        using boost::math::constants::pi;
+        vector_td<REAL, D> beta;
 
-        p.create(kosf*kwidth+1);
-        for(size_t i = 0; i < kosf*kwidth+1; i++){
-            Real om = Real(i)/Real(kosf*kwidth);
-            p[i] = bessi0(beta*std::sqrt(1-om*om));
-        }
-        Real pConst = p[0];
-        for(auto it = p.begin(); it != p.end(); it++)
-            *it /= pConst;
-        p[kosf*kwidth] = 0;
-        
-        // Need to fix to allow for flexibility in dimensions
-        hoNDArray<Real> dax(osf*n[0]);
-        for(int i = 0; i < osf*n[0]; i++){
-            Real x = (i-osf*n[0]/2)/n[0];
-            Real tmp = M_PI*M_PI*kw*kw*x*x-beta*beta;
-            auto sqa = std::sqrt(complex<Real>(tmp, 0));
-            dax[i] = (std::sin(sqa)/sqa).real();
-        }
-        auto daxConst = dax[osf*n[0]/2-1];
-        for(auto it = dax.begin(); it != dax.end(); it++)
-            *it /= daxConst;
+        auto alpha = matrix_size_os / matrix_size;
 
-        switch(D){
-            case 1:{
-                da.create(osf*n[0]);
-                std::copy(dax.begin(), dax.end(), da.begin());
-                nx.create(k.get_number_of_elements());
-                for(size_t i = 0; i < k.get_number_of_elements(); i++)
-                    nx[i] = (n[0]*osf/2)+osf*n[0]*k[i][0];
-                break;
-            }
-            case 2:{
-                da.create(osf*n[0], osf*n[1]);
-                for(size_t i = 0; i < osf*n[0]; i++)
-                    for(size_t j = 0; j < osf*n[1]; j++)
-                        da[i+j*n[1]*osf] = dax[i]*dax[j];
-                nx.create(k.get_number_of_elements());
-                ny.create(k.get_number_of_elements());
-                for(size_t i = 0; i < k.get_number_of_elements(); i++){
-                    nx[i] = (n[0]*osf/2)+osf*n[0]*k[i][0];
-                    ny[i] = (n[1]*osf/2)+osf*n[1]*k[i][1];
-                }
-                break;
-            }
-            case 3:{
-                da.create(osf*n[0], osf*n[1], osf*n[2]);
-                for(size_t i = 0; i < osf*n[0]; i++)
-                    for(size_t j = 0; j < osf*n[1]; j++)
-                        for(size_t k = 0; k < osf*n[3]; k++)
-                            da[i+n[1]*j*osf+n[2]*k*osf] = dax[i]*dax[j]*dax[k];
-                nx.create(k.get_number_of_elements());
-                ny.create(k.get_number_of_elements());
-                nz.create(k.get_number_of_elements());
-                for(size_t i = 0; i < k.get_number_of_elements(); i++){
-                    nx[i] = (n[0]*osf/2)+osf*n[0]*k[i][0];
-                    ny[i] = (n[1]*osf/2)+osf*n[1]*k[i][1];
-                    nz[i] = (n[2]*osf/2)+osf*n[2]*k[i][2];
-                }
-                break;
-                
-            }
+        for (int d = 0; d < D; d++) {
+            beta[d] = (pi<REAL>() * std::sqrt(
+                    (W * W) / (alpha[d] * alpha[d]) * (alpha[d] - REAL(0.5)) * (alpha[d] - REAL(0.5)) -
+                    REAL(0.8)));
         }
+
+        return beta;
     }
 
-    template<class Real, unsigned int D>
-    void hoNFFT_plan<Real, D>::convolve_NFFT_C2NC(
-        hoNDArray<ComplexType> &m,
-        hoNDArray<ComplexType> &d
-    )
-    {
-        switch(D){
-            case 1:{
-                m.fill(0);
-                for(size_t i = 0; i < k.get_number_of_elements(); i++){
-                    for(int lx = -kwidth; lx < kwidth+1; lx++){
-                        Real nxt = std::round(nx[i]+lx);
-                        Real kkx = std::min(
-                            std::round(kosf*std::abs(nx[i]-nxt)),
-                            std::floor(kosf*kwidth)
-                        );
-                        Real kwx = p[kkx];
-                        nxt = std::max(nxt, Real(0)); nxt = std::min(nxt, osf*n[0]-1);
-                        d[i] += m[(size_t)nxt]*kwx;
-                    }
-                }
-                break;                
-            }
-            case 2:{
-                d.fill(0);
-                for(size_t i = 0; i < k.get_number_of_elements(); i++){
-                    for(int lx = -kwidth; lx < kwidth+1; lx++){
-                        for(int ly = -kwidth; ly < kwidth+1; ly++){
-                            Real nxt = std::round(nx[i]+lx);
-                            Real nyt = std::round(ny[i]+ly);
 
-                            Real kkx = std::min(
-                                std::round(kosf*std::abs(nx[i]-nxt)),
-                                std::floor(kosf*kwidth)
-                            );
-                            Real kky = std::min(
-                                std::round(kosf*std::abs(ny[i]-nyt)),
-                                std::floor(kosf*kwidth)
-                            );
-                            Real kwx = p[kkx]; Real kwy = p[kky];
 
-                            nxt = std::max(nxt, Real(0)); nxt = std::min(nxt, osf*n[0]-1);
-                            nyt = std::max(nyt, Real(0)); nyt = std::min(nyt, osf*n[1]-1);
-
-                            d[i] += m[(size_t)(nxt+nyt*osf*n[1])]*kwx*kwy;
-                        }
-                    }
-                }
-                break;
-            }
-            case 3:{
-                m.fill(0);
-                for(size_t i = 0; i < k.get_number_of_elements(); i++){
-                    for(int lx = -kwidth; lx < kwidth+1; lx++){
-                        for(int ly = -kwidth; ly < kwidth+1; ly++){
-                            for(int lz = -kwidth; lz < kwidth+1; lz++){
-                                Real nxt = std::round(nx[i]+lx);
-                                Real nyt = std::round(ny[i]+ly);
-                                Real nzt = std::round(nz[i]+lz);
-
-                                Real kkx = std::min(
-                                    std::round(kosf*std::abs(nx[i]-nxt)),
-                                    std::floor(kosf*kwidth)
-                                );
-                                Real kky = std::min(
-                                    std::round(kosf*std::abs(ny[i]-nyt)),
-                                    std::floor(kosf*kwidth)
-                                );
-                                Real kkz = std::min(
-                                    std::round(kosf*std::abs(nz[i]-nzt)),
-                                    std::floor(kosf*kwidth)
-                                );
-                                Real kwx = p[kkx];
-                                Real kwy = p[kky];
-                                Real kwz = p[kkz];
-
-                                nxt = std::max(nxt, Real(0));
-                                nxt = std::min(nxt, osf*n[0]-1);
-
-                                nyt = std::max(nxt, Real(0));
-                                nyt = std::min(nyt, osf*n[1]-1);
-
-                                nzt = std::max(nzt, Real(0));
-                                nzt = std::min(nzt, osf*n[2]-1);
-
-                                d[i] += m[(size_t)(nxt+nyt*osf*n[1]+nzt*osf*n[2])]*kwx*kwy*kwz;
-                            }
-                        }
-                    }
-                }
-                break;    
-            }
-        }
-    }
-
-    template<class Real, unsigned int D>
-    void hoNFFT_plan<Real, D>::convolve_NFFT_NC2C(
-        hoNDArray<ComplexType> &d,
-        hoNDArray<ComplexType> &m
-    )
-    {
-        switch(D){
-            case 1:{
-                m.fill(0);
-                for(size_t i = 0; i < k.get_number_of_elements(); i++){
-                    ComplexType dw = d[i];
-                    for(int lx = -kwidth; lx < kwidth+1; lx++){
-                        Real nxt = std::round(nx[i]+lx);
-                        Real kkx = std::min(
-                            std::round(kosf*std::abs(nx[i]-nxt)),
-                            std::floor(kosf*kwidth)
-                        );
-                        Real kwx = p[kkx];
-                        nxt = std::max(nxt, Real(0)); nxt = std::min(nxt, osf*n[0]-1);
-                        m[(size_t)nxt] += dw*kwx;
-                    }
-                }
-
-                m[0] = 0;
-                m[m.get_number_of_elements()] = 0;
-                break;
-            }
-            case 2:{
-                m.fill(0);
-                for(size_t i = 0; i < k.get_number_of_elements(); i++){
-                    ComplexType dw = d[i];
-                    for(int lx = -kwidth; lx < kwidth+1; lx++){
-                        for(int ly = -kwidth; ly < kwidth+1; ly++){
-                            Real nxt = std::round(nx[i]+lx);
-                            Real nyt = std::round(ny[i]+ly);
-
-                            Real kkx = std::min(
-                                std::round(kosf*std::abs(nx[i]-nxt)),
-                                std::floor(kosf*kwidth)
-                            );
-                            Real kky = std::min(
-                                std::round(kosf*std::abs(ny[i]-nyt)),
-                                std::floor(kosf*kwidth)
-                            );
-                            Real kwx = p[kkx]; Real kwy = p[kky];
-
-                            nxt = std::max(nxt, Real(0)); nxt = std::min(nxt, osf*n[0]-1);
-                            nyt = std::max(nyt, Real(0)); nyt = std::min(nyt, osf*n[1]-1);
-
-                            m[(size_t)(nxt+nyt*osf*n[1])] += dw*kwx*kwy;
-                        }
-                    }
-
-                    for(size_t i = 0; i < n[0]*osf; i++){
-                        m[i] = 0;
-                        m[n[0]*osf+i] = 0;
-                        m[n[0]*osf*(n[0]*osf-1)+i] = 0;
-                        m[n[0]*osf*i+(n[0]*osf-1)] = 0;
-                    }
-                }
-                break;
-            }
-            case 3:{
-                m.fill(0);
-                for(size_t i = 0; i < k.get_number_of_elements(); i++){
-                    ComplexType dw = d[i];
-                    for(int lx = -kwidth; lx < kwidth+1; lx++){
-                        for(int ly = -kwidth; ly < kwidth+1; ly++){
-                            for(int lz = -kwidth; lz < kwidth+1; lz++){
-                                Real nxt = std::round(nx[i]+lx);
-                                Real nyt = std::round(ny[i]+ly);
-                                Real nzt = std::round(nz[i]+lz);
-
-                                Real kkx = std::min(
-                                    std::round(kosf*std::abs(nx[i]-nxt)),
-                                    std::floor(kosf*kwidth)
-                                );
-                                Real kky = std::min(
-                                    std::round(kosf*std::abs(ny[i]-nyt)),
-                                    std::floor(kosf*kwidth)
-                                );
-                                Real kkz = std::min(
-                                    std::round(kosf*std::abs(nz[i]-nzt)),
-                                    std::floor(kosf*kwidth)
-                                );
-                                Real kwx = p[kkx];
-                                Real kwy = p[kky];
-                                Real kwz = p[kkz];
-
-                                nxt = std::max(nxt, Real(0));
-                                nxt = std::min(nxt, osf*n[0]-1);
-
-                                nyt = std::max(nxt, Real(0));
-                                nyt = std::min(nyt, osf*n[1]-1);
-
-                                nzt = std::max(nzt, Real(0));
-                                nzt = std::min(nzt, osf*n[2]-1);
-
-                                m[(size_t)(nxt+nyt*osf*n[1]+nzt*osf*n[2])] +=
-                                    dw*kwx*kwy*kwz;
-                            }
-                        }
-                    }
-                }
-
-                for(size_t i = 0; i < n[0]*osf; i++){
-                    m[i] = 0;
-                    m[n[0]*osf+i] = 0;
-                    m[n[0]*osf*(n[0]*osf-1)+i] = 0;
-                    m[n[0]*osf*i+(n[0]*osf-1)] = 0;
-                    // Need to add two more
-                }
-                break;
-            }
-        }
-    }
-
-    template<class Real, unsigned int D>
-    Real hoNFFT_plan<Real, D>::bessi0(Real x)
-    {
-        Real denominator;
-        Real numerator;
-        Real z;
-        if (x == 0.0)
-        {
-          return 1.0;
-        }
-        else
-        {
-            z = x * x;
-            numerator = (z* (z* (z* (z* (z* (z* (z* (z* (z* (z* (z* (z* (z* 
-                        (z* 0.210580722890567e-22  + 0.380715242345326e-19 ) +
-                        0.479440257548300e-16) + 0.435125971262668e-13 ) +
-                        0.300931127112960e-10) + 0.160224679395361e-7  ) +
-                        0.654858370096785e-5)  + 0.202591084143397e-2  ) +
-                        0.463076284721000e0)   + 0.754337328948189e2   ) +
-                        0.830792541809429e4)   + 0.571661130563785e6   ) +
-                        0.216415572361227e8)   + 0.356644482244025e9   ) +
-                        0.144048298227235e10);
-
-            denominator = (z*(z*(z-0.307646912682801e4)+0.347626332405882e7)-0.144048298227235e10);
-        }
-
-      return -numerator/denominator;
-    }
 }
 
-template class EXPORTCPUNFFT Gadgetron::hoNFFT_plan<float, 1>;
-template class EXPORTCPUNFFT Gadgetron::hoNFFT_plan<float, 2>;
-template class EXPORTCPUNFFT Gadgetron::hoNFFT_plan<float, 3>;
+template
+class EXPORTCPUNFFT Gadgetron::hoNFFT_plan<float, 1>;
 
-template class EXPORTCPUNFFT Gadgetron::hoNFFT_plan<double, 1>;
-template class EXPORTCPUNFFT Gadgetron::hoNFFT_plan<double, 2>;
-template class EXPORTCPUNFFT Gadgetron::hoNFFT_plan<double, 3>;
+template
+class EXPORTCPUNFFT Gadgetron::hoNFFT_plan<float, 2>;
+
+template
+class EXPORTCPUNFFT Gadgetron::hoNFFT_plan<float, 3>;
+
+template
+class EXPORTCPUNFFT Gadgetron::hoNFFT_plan<double, 1>;
+
+template
+class EXPORTCPUNFFT Gadgetron::hoNFFT_plan<double, 2>;
+
+template
+class EXPORTCPUNFFT Gadgetron::hoNFFT_plan<double, 3>;

@@ -12,8 +12,8 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/toolboxes/operators
   )
 
-set(SPIRAL_HEADER_FILES gadgetron_spiral_export.h SpiralToGenericGadget.h vds.h)
-set(SPIRAL_SRC_FILES vds.cpp  SpiralToGenericGadget.cpp)
+set(SPIRAL_HEADER_FILES gadgetron_spiral_export.h SpiralToGenericGadget.h vds.h TrajectoryParameters.h)
+set(SPIRAL_SRC_FILES vds.cpp  SpiralToGenericGadget.cpp TrajectoryParameters.cpp)
 
 if (CUDA_FOUND)
     include_directories(
@@ -27,7 +27,7 @@ if (CUDA_FOUND)
       )
 
     set(SPIRAL_HEADER_FILES ${SPIRAL_HEADER_FILES} gpuSpiralSensePrepGadget.h)
-    set(SPIRAL_SRC_FILES ${SPIRAL_SRC_FILES}  gpuSpiralSensePrepGadget.cpp TrajectoryParameters.cpp TrajectoryParameters.h)
+    set(SPIRAL_SRC_FILES ${SPIRAL_SRC_FILES}  gpuSpiralSensePrepGadget.cpp )
 endif()
   
 add_library(gadgetron_spiral SHARED ${SPIRAL_HEADER_FILES} ${SPIRAL_SRC_FILES})

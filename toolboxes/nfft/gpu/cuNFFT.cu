@@ -61,7 +61,7 @@ using namespace Gadgetron;
 extern __shared__ char _shared_mem[];
 
 // Includes containing the NFFT convolution implementation
-#include "KaiserBessel_kernel.cu"
+#include "KaiserBessel_kernel.h"
 #include "NFFT_C2NC_conv_kernel.cu"
 #include "NFFT_NC2C_conv_kernel.cu"
 #include "NFFT_NC2C_atomic_conv_kernel.cu"

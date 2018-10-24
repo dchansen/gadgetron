@@ -29,7 +29,7 @@ template<class REAL, unsigned int D> __device__ __inline__ REAL ndim_loop(const 
 		REAL weight = KaiserBessel<REAL>(abs(point-vector_td<REAL,D>(grid_point)),vector_td<REAL,D>(image_dims),REAL(1)/W,beta);
 		weights[loop_counter] = weight;
 		//column_indices[loop_counter] = co_to_idx(grid_point%image_dims,image_dims);
-		column_indices[loop_counter] = co_to_idx(grid_point%image_dims,image_dims);
+		column_indices[loop_counter] = co_to_idx((grid_point+image_dims)%image_dims,image_dims);
 		loop_counter++;
 		wsum += weight;
 	}

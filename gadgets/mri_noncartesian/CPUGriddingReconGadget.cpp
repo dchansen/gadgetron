@@ -8,16 +8,15 @@
 #include "hoNDArray_elemwise.h"
 #include "hoNDArray_math.h"
 #include "hoCgSolver.h"
+#include "ImageArraySendMixin.h"
 #include <time.h>
-#include <numeric>
+#include <boost/range/algorithm/for_each.hpp>
+#include "NonCartesianTools.h"
 
 namespace Gadgetron{
-	CPUGriddingReconGadget::CPUGriddingReconGadget(){}
 
-	CPUGriddingReconGadget::~CPUGriddingReconGadget(){}
 
 	int CPUGriddingReconGadget::process_config(ACE_Message_Block *mb){
-		GADGET_CHECK_RETURN(GenericReconGadget::process_config(mb) == GADGET_OK, GADGET_FAIL);
 		ISMRMRD::IsmrmrdHeader h;
 		deserialize(mb->rd_ptr(), h);
 		auto matrixSize = h.encoding.front().encodedSpace.matrixSize;
@@ -30,13 +29,16 @@ namespace Gadgetron{
 		
 		imageDimsOs.push_back(matrixSize.x*oversamplingFactor);
 		imageDimsOs.push_back(matrixSize.y*oversamplingFactor);
+		this->initialize_encoding_space_limits(h);
 
 		return GADGET_OK;
 	}
 
 	int CPUGriddingReconGadget::process(GadgetContainerMessage<IsmrmrdReconData> *m1){
+		std::unique_ptr<GadgetronTimer> timer;
+		if (perform_timing) {  timer = std::make_unique<GadgetronTimer>("CPUGridding");}
 		IsmrmrdReconData *recon_bit_ = m1->getObjectPtr();
-		process_called_times_++;
+
 		for(size_t e = 0; e < recon_bit_->rbit_.size(); e++){
 			IsmrmrdDataBuffered* buffer = &(recon_bit_->rbit_[e].data_);
 			IsmrmrdImageArray imarray;
@@ -49,7 +51,7 @@ namespace Gadgetron{
 			size_t S = buffer->data_.get_size(5);
 			size_t SLC = buffer->data_.get_size(6);
 
-			imarray.data_.create(imageDims[0], imageDims[1], 1, 1, N, S, SLC);			
+//			imarray.data_.create(imageDims[0], imageDims[1], 1, 1, N, S, SLC);
 
 			auto &trajectory = *buffer->trajectory_;
 			auto trajDcw = separateDcwAndTraj(&trajectory);
@@ -64,23 +66,14 @@ namespace Gadgetron{
 			hoNDArray<float_complext> data(*permuted);
 
 			auto image = reconstruct(&data, traj.get(), dcw.get(), CHA);
-			auto img = *image;
-			hoNDArray<float_complext> finalImage; finalImage.create(imageDims[0], imageDims[1]);
-			
-			// Crop the image
-			size_t halfImageDims = (imageDimsOs[0]-imageDims[0])/2;
-			for(size_t i = halfImageDims; i < imageDims[0]+halfImageDims; i++)
-				for(size_t j = halfImageDims; j < imageDims[1]+halfImageDims; j++)
-					finalImage[(i-halfImageDims)+(j-halfImageDims)*imageDims[0]] = img[i+j*imageDimsOs[0]]; 
+			imarray.data_ = hoNDArray<std::complex<float>>(image->get_dimensions());
+			memcpy(imarray.data_.get_data_ptr(),image->get_data_ptr(),image->get_number_of_bytes());
 
-			auto elements = imarray.data_.get_number_of_elements();
-		 	memcpy(imarray.data_.get_data_ptr(), finalImage.get_data_ptr(), sizeof(float)*2*elements);			
-			this->compute_image_header(recon_bit_->rbit_[e], imarray, e);
-			this->send_out_image_array(recon_bit_->rbit_[e], imarray, e, ((int)e + 1), GADGETRON_IMAGE_REGULAR);		
+			NonCartesian::append_image_header(imarray,recon_bit_->rbit_[e], e);
+			this->send_out_image_array(imarray, e, ((int)e + 1), GADGETRON_IMAGE_REGULAR);
 		}
 
 		m1->release();
-
 		return GADGET_OK;
 	}
 
@@ -90,39 +83,57 @@ namespace Gadgetron{
 		hoNDArray<float> *dcw,
 		size_t nCoils
 	){
-		hoNDArray<float_complext> arg;
-		arg.create(imageDimsOs[0], imageDimsOs[0]);
-		for(unsigned int i = 0; i < nCoils; ++i){
-			hoNDArray<float_complext> channelData(data->get_number_of_elements()/nCoils);
-			std::copy(data->begin()+i*(data->get_number_of_elements()/nCoils), data->begin()+(i+1)*(data->get_number_of_elements()/nCoils), channelData.begin());
-			
-			hoNDArray<float_complext> channelRecon = *reconstructChannel(&channelData, traj, dcw);
-			multiplyConj(channelRecon, channelRecon, channelRecon);
-			add(arg, channelRecon, arg);	
-		}
-		sqrt_inplace(&arg);
-		return boost::make_shared<hoNDArray<float_complext>>(arg);
+
+		hoNFFT_plan<float, 2> plan(
+				from_std_vector<size_t, 2>(imageDims),
+				oversamplingFactor,
+				kernelWidth
+		);
+
+		hoNDArray<float_complext> result(imageDimsOs[0], imageDimsOs[1], data->get_number_of_elements()/traj->get_number_of_elements());
+		plan.preprocess(*traj);
+		plan.compute(*data, result, dcw, NFFT_comp_mode::BACKWARDS_NC2C);
+
+
+
+//		write_nd_array(abs(&result).get(),"coils.reals");
+
+		boost::for_each(result,[](auto & r){ r = norm(r);});
+//		write_nd_array(abs(&result).get(),"squared.real");
+
+		auto summed = sum(&result,2);
+		sqrt_inplace(summed.get());
+		write_nd_array(abs(summed.get()).get(),"summed.real");
+		auto image_dims = from_std_vector<size_t ,2>(imageDims);
+        auto image_dims_os = from_std_vector<size_t ,2>(imageDimsOs);
+
+        summed = crop((image_dims_os-image_dims)/size_t(2),image_dims,summed.get());
+
+
+		return summed;
 	}	
 
-	boost::shared_ptr<hoNDArray<float_complext>> CPUGriddingReconGadget::reconstructChannel(
+	hoNDArray<float_complext> CPUGriddingReconGadget::reconstructChannel(
 		hoNDArray<float_complext> *data,
 		hoNDArray<floatd2> *traj,
 		hoNDArray<float> *dcw
 	){	
 		if(!iterateProperty.value()){
+
 			hoNFFT_plan<float, 2> plan(
 				from_std_vector<size_t, 2>(imageDims),
 				oversamplingFactor,
 				kernelWidth
 			);	
-			hoNDArray<float_complext> result; result.create(imageDimsOs[0], imageDimsOs[1]);
+			hoNDArray<float_complext> result(imageDimsOs[0], imageDimsOs[1]);
 			plan.preprocess(*traj);
-			plan.compute(*data, result, *dcw, hoNFFT_plan<float, 2>::NFFT_BACKWARDS_NC2C); 
+			plan.compute(*data, result, dcw, NFFT_comp_mode::BACKWARDS_NC2C);
 
-			return boost::make_shared<hoNDArray<float_complext>>(result);
-		}else{	
+			return result;
+		}else{
+		    throw std::runtime_error("Iterative recon not implemented yet");
 			// do iterative reconstruction
-			return boost::make_shared<hoNDArray<float_complext>>();
+			//return boost::make_shared<hoNDArray<float_complext>>();
 		}
 	}
 
@@ -146,5 +157,13 @@ namespace Gadgetron{
 		return std::make_tuple(traj, dcw);
 	}
 
-	GADGET_FACTORY_DECLARE(CPUGriddingReconGadget);
+    CPUGriddingReconGadget::CPUGriddingReconGadget() {
+
+    }
+
+    CPUGriddingReconGadget::~CPUGriddingReconGadget() {
+
+    }
+
+    GADGET_FACTORY_DECLARE(CPUGriddingReconGadget);
 }

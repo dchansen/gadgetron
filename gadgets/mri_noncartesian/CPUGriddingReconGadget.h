@@ -13,7 +13,7 @@
 
 namespace Gadgetron{
 
-	class EXPORTGADGETSMRINONCARTESIAN CPUGriddingReconGadget : public GenericReconGadget {
+	class EXPORTGADGETSMRINONCARTESIAN CPUGriddingReconGadget : public ImageArraySendMixin<CPUGriddingReconGadget> , public Gadget1<IsmrmrdReconData> {
 
 	/**
 		CPUGriddingReconGadget class declaration 
@@ -32,7 +32,7 @@ namespace Gadgetron{
 
 		~CPUGriddingReconGadget();
 	
-	protected:
+
 		
 		/**
 			Gadget properties declaration
@@ -41,7 +41,11 @@ namespace Gadgetron{
 		GADGET_PROPERTY(kernelWidthProperty, float, "Kernel width", 5.5);
 		GADGET_PROPERTY(oversamplingFactorProperty, float, "Oversmapling factor", 1.5);
 		GADGET_PROPERTY(iterateProperty, bool, "Iterate bool", false);
+		GADGET_PROPERTY(perform_timing, bool,"Perform timing", false);
+		GADGET_PROPERTY(image_series,int,"Image Series",1);
+        GADGET_PROPERTY(verbose,bool,"Verbose",false);
 
+    protected:
 		/**
 			Storage for the properties above
 		*/
@@ -56,8 +60,9 @@ namespace Gadgetron{
 		std::vector<size_t> imageDims;
 		std::vector<size_t> imageDimsOs;
 
-		virtual int process_config(ACE_Message_Block *mb);
-		virtual int process(GadgetContainerMessage <IsmrmrdReconData> *m1);
+
+		virtual int process_config(ACE_Message_Block *mb) override;
+		virtual int process(GadgetContainerMessage <IsmrmrdReconData> *m1) override;
 
 		/**
 			Reconstruct multi channel data
@@ -83,7 +88,7 @@ namespace Gadgetron{
 			/param dcw: density compensation
 		*/
 
-		boost::shared_ptr<hoNDArray<float_complext>> reconstructChannel(
+		hoNDArray<float_complext> reconstructChannel(
 			hoNDArray<float_complext> *data,
 			hoNDArray<floatd2> *traj,
 			hoNDArray<float> *dcw

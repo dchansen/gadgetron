@@ -3,3 +3,8 @@ if (CUDA_FOUND)
 endif ()
 
 add_subdirectory(cpu)
+
+install(FILES
+    KaiserBessel_kernel.h
+    NFFT.h
+    DESTINATION ${GADGETRON_INSTALL_INCLUDE_PATH} COMPONENT main)

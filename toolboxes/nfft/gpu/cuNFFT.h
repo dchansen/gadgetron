@@ -22,6 +22,7 @@
 #include <thrust/device_vector.h>
 #include <boost/shared_ptr.hpp>
 #include "cuSparseMatrix.h"
+#include "../NFFT.h"
 
 
 enum class ConvolutionType {
@@ -43,30 +44,6 @@ enum class NFFT_prep_mode {
 enum class NFFT_wipe_mode {
     ALL, /**< delete all internal memory. */
     PREPROCESSING /**< delete internal memory holding the preprocessing data structures. */
-};
-/**
-     Enum defining the desired NFFT operation
-  */
-enum class NFFT_comp_mode {
-    FORWARDS_C2NC, /**< forwards NFFT Cartesian to non-Cartesian. */
-    FORWARDS_NC2C, /**< forwards NFFT non-Cartesian to Cartesian. */
-    BACKWARDS_C2NC, /**< backwards NFFT Cartesian to non-Cartesian. */
-    BACKWARDS_NC2C /**< backwards NFFT non-Cartesian to Cartesian. */
-};
-
-/**
-      Enum specifying the direction of the NFFT standalone convolution
-   */
-enum class NFFT_conv_mode {
-    C2NC, /**< convolution: Cartesian to non-Cartesian. */
-    NC2C /**< convolution: non-Cartesian to Cartesian. */
-};
-/**
-   Enum specifying the direction of the NFFT standalone FFT.
-*/
-enum class NFFT_fft_mode {
-    FORWARDS, /**< forwards FFT. */
-    BACKWARDS /**< backwards FFT. */
 };
 
 

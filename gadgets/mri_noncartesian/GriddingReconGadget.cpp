@@ -14,39 +14,24 @@
 #include "cudaDeviceManager.h"
 #include <numeric>
 #include <random>
-
+#include "NonCartesianTools.h"
 namespace Gadgetron {
-
-	GriddingReconGadget::GriddingReconGadget() : BaseClass()
-	{
-	}
-
-	GriddingReconGadget::~GriddingReconGadget()
-	{
-	}
 
 	int GriddingReconGadget::process_config(ACE_Message_Block* mb)
 	{
-		GADGET_CHECK_RETURN(BaseClass::process_config(mb) == GADGET_OK, GADGET_FAIL);
-
 		// -------------------------------------------------
 
 		ISMRMRD::IsmrmrdHeader h;
-		try
-		{
-			deserialize(mb->rd_ptr(), h);
-		}
-		catch (...)
-		{
-			GDEBUG("Error parsing ISMRMRD Header");
-		}
+		deserialize(mb->rd_ptr(), h);
+
 
 		auto matrixsize = h.encoding.front().encodedSpace.matrixSize;
 
 
 		kernel_width_ = kernel_width.value();
 		oversampling_factor_ = gridding_oversampling_factor.value();
-		
+
+
 		image_dims_.push_back(matrixsize.x);
 		image_dims_.push_back(matrixsize.y);
 		
@@ -58,28 +43,25 @@ namespace Gadgetron {
 		
 		// In case the warp_size constraint kicked in
 		oversampling_factor_ = float(image_dims_os_[0])/float(image_dims_[0]);
+		this->initialize_encoding_space_limits(h);
 		
 		return GADGET_OK;
 	}
 
 	int GriddingReconGadget::process(Gadgetron::GadgetContainerMessage< IsmrmrdReconData >* m1)
 	{
-		if (perform_timing.value()) { gt_timer_local_.start("GriddingReconGadget::process"); }
 
-		process_called_times_++;
+		std::unique_ptr<GadgetronTimer> timer;
+		if (perform_timing) { timer = std::make_unique<GadgetronTimer>("Gridding Recon");}
+		process_called_times++;
+
 
 		IsmrmrdReconData* recon_bit_ = m1->getObjectPtr();
-		if (recon_bit_->rbit_.size() > num_encoding_spaces_)
-		{
-			GWARN_STREAM("Incoming recon_bit has more encoding spaces than the protocol : " << recon_bit_->rbit_.size() << " instead of " << num_encoding_spaces_);
-		}
+
 
 		// for every encoding space
 		for (size_t e = 0; e < recon_bit_->rbit_.size(); e++)
 		{
-
-			GDEBUG_CONDITION_STREAM(verbose.value(), "Calling " << process_called_times_ << " , encoding space : " << e);
-			GDEBUG_CONDITION_STREAM(verbose.value(), "======================================================================");
 
 			IsmrmrdDataBuffered* buffer = &(recon_bit_->rbit_[e].data_);
 
@@ -151,74 +133,22 @@ namespace Gadgetron {
 			imarray.data_ = std::move(*boost::reinterpret_pointer_cast<decltype(imarray.data_)>(host_img));
 //			memcpy(imarray.data_.get_data_ptr(), host_img->get_data_ptr(), host_img->get_number_of_bytes());
 
-			this->compute_image_header(recon_bit_->rbit_[e], imarray, e);
-			this->send_out_image_array(recon_bit_->rbit_[e], imarray, e, ((int)e + 1), GADGETRON_IMAGE_REGULAR);
+
+
+			NonCartesian::append_image_header(imarray,recon_bit_->rbit_[e], e);
+			this->send_out_image_array(imarray, e, ((int)e + 1), GADGETRON_IMAGE_REGULAR);
 			
 
 			//Is this where we measure SNR?
-			if (replicas.value() > 0 && snr_frame.value() == process_called_times_) {
-						
-				hoNDArray<std::complex<float> > rep_array(image_dims_[0], image_dims_[1], replicas.value());
-				
-				std::mt19937 engine;
-				std::normal_distribution<float> distribution;
-				for (size_t r = 0; r < replicas.value(); ++r) {
+			if (replicas.value() > 0 && snr_frame.value() == process_called_times) {
 
-					if (r % 10 == 0) {
-						GDEBUG("Running pseudo replics %d of %d\n", r, replicas.value());
-					}
-					hoNDArray<std::complex<float> > dtmp = buffer->data_;
-					auto permuted_rep = permute((hoNDArray<float_complext>*)&dtmp,&new_order);
-					auto dataptr = permuted_rep->get_data_ptr();
-
-					for (size_t k =0; k <  permuted_rep->get_number_of_elements(); k++){
-						dataptr[k] += std::complex<float>(distribution(engine),distribution(engine));
-					}
-					
-					cuNDArray<float_complext> data_rep(*permuted_rep);
-					
-					images = reconstruct(&data_rep,traj.get(),dcw.get(),CHA);
-					
-					//Coil combine
-					*images *= *conj(csm.get());
-					auto combined = sum(images.get(),images->get_number_of_dimensions()-1);
-					
-					auto host_img = combined->to_host();
-					
-					auto elements = imarray.data_.get_number_of_elements();
-					size_t offset = image_dims_[0]*image_dims_[1]*r;
-					
-					memcpy(rep_array.get_data_ptr()+offset, host_img->get_data_ptr(), sizeof(float)*2*elements);
-				}
-				
-
-				hoNDArray<float> mag(rep_array.get_dimensions());
-				hoNDArray<float> mean(image_dims_[0],image_dims_[1]);
-				hoNDArray<float> std(image_dims_[0],image_dims_[1]);
-				
-				Gadgetron::abs(rep_array, mag);
-				Gadgetron::sum_over_dimension(mag,mean,2);
-				Gadgetron::scal(1.0f/replicas.value(), mean);
-				
-				mag -= mean;
-				mag *= mag;
-				
-				Gadgetron::sum_over_dimension(mag,std,2);
-				Gadgetron::scal(1.0f/(replicas.value()-1), std);
-				Gadgetron::sqrt_inplace(&std);
-				
-				//SNR image
-				mean /= std;
-				imarray.data_ = *real_to_complex< std::complex<float> >(&mean);
-				
-				this->compute_image_header(recon_bit_->rbit_[e], imarray, e);
-				this->send_out_image_array(recon_bit_->rbit_[e], imarray, e, image_series.value() + 100 * ((int)e + 3), GADGETRON_IMAGE_SNR_MAP);
+				pseudo_replica(buffer->data_,*traj,*dcw,*csm,recon_bit_->rbit_[e],e,CHA);
 			}
 		}
 		
 		m1->release();
 
-		if (perform_timing.value()) { gt_timer_local_.stop(); }
+
 
 		return GADGET_OK;
 	}
@@ -290,134 +220,77 @@ namespace Gadgetron {
 		return std::make_tuple(traj,dcw);
 	}
 
-	void GriddingReconGadget::compute_image_header(IsmrmrdReconBit &recon_bit, IsmrmrdImageArray &res, size_t e) {
+	void GriddingReconGadget::pseudo_replica(const hoNDArray<std::complex<float>>& data,
+	cuNDArray<floatd2>& traj,cuNDArray<float>& dcw, const cuNDArray<float_complext>& csm,
+	const IsmrmrdReconBit& recon_bit, size_t encoding, size_t ncoils) {
+		hoNDArray<std::complex<float> > rep_array(image_dims_[0], image_dims_[1], replicas.value());
 
-        size_t RO = res.data_.get_size(0);
-        size_t E1 = res.data_.get_size(1);
-        size_t E2 = res.data_.get_size(2);
-        size_t CHA = res.data_.get_size(3);
-        size_t N = res.data_.get_size(4);
-        size_t S = res.data_.get_size(5);
-        size_t SLC = res.data_.get_size(6);
+		std::mt19937 engine;
+		std::normal_distribution<float> distribution;
 
+		for (size_t r = 0; r < replicas.value(); ++r) {
 
-        res.headers_.create(N, S, SLC);
-        res.meta_.resize(N*S*SLC);
+			if (r % 10 == 0) {
+				GDEBUG("Running pseudo replics %d of %d\n", r, replicas.value());
+			}
+			hoNDArray<std::complex<float> > dtmp = data;
+			std::vector<size_t> new_order = {0,1,2,4,5,6,3};
+			auto permuted_rep = permute((hoNDArray<float_complext>*)&dtmp,&new_order);
+			auto dataptr = permuted_rep->get_data_ptr();
 
-        size_t n, s, slc;
+			for (size_t k =0; k <  permuted_rep->get_number_of_elements(); k++){
+				dataptr[k] += std::complex<float>(distribution(engine),distribution(engine));
+			}
 
-        for (slc = 0; slc < SLC; slc++)
-        {
-            for (s = 0; s < S; s++)
-            {
-                for (n = 0; n < N; n++)
-                {
+			cuNDArray<float_complext> data_rep(*permuted_rep);
 
-                    const ISMRMRD::AcquisitionHeader& acq_header = recon_bit.data_.headers_(0,0,n,s,slc);
-                    ISMRMRD::ImageHeader& im_header = res.headers_(n, s, slc);
-                    ISMRMRD::MetaContainer& meta = res.meta_[n + s*N + slc*N*S];
+			auto images = reconstruct(&data_rep,&traj,&dcw,ncoils);
 
-                    im_header.version = acq_header.version;
-                    im_header.data_type = ISMRMRD::ISMRMRD_CXFLOAT;
-                    im_header.flags = acq_header.flags;
-                    im_header.measurement_uid = acq_header.measurement_uid;
+			//Coil combine
+			*images *= *conj(&csm);
+			auto combined = sum(images.get(),images->get_number_of_dimensions()-1);
 
-                    im_header.matrix_size[0] = (uint16_t)RO;
-                    im_header.matrix_size[1] = (uint16_t)E1;
-                    im_header.matrix_size[2] = (uint16_t)E2;
+			auto host_img = combined->to_host();
 
-                    std::copy(recon_bit.data_.sampling_.recon_FOV_,std::end(recon_bit.data_.sampling_.recon_FOV_),im_header.field_of_view);
+			size_t offset = image_dims_[0]*image_dims_[1]*r;
 
-                    im_header.channels = (uint16_t)CHA;
-
-                    std::copy(acq_header.position,std::end(acq_header.position),im_header.position);
-
-					std::copy(acq_header.read_dir,std::end(acq_header.read_dir),im_header.read_dir);
-
-					std::copy(acq_header.phase_dir,std::end(acq_header.phase_dir),im_header.phase_dir);
-					std::copy(acq_header.slice_dir,std::end(acq_header.slice_dir),im_header.slice_dir);
-					std::copy(acq_header.patient_table_position,std::end(acq_header.patient_table_position),im_header.patient_table_position);
+			memcpy(rep_array.get_data_ptr()+offset, host_img->get_data_ptr(), host_img->get_number_of_bytes());
+		}
 
 
-                    im_header.average = acq_header.idx.average;
-                    im_header.slice = acq_header.idx.slice;
-                    im_header.contrast = acq_header.idx.contrast;
-                    im_header.phase = acq_header.idx.phase;
-                    im_header.repetition = acq_header.idx.repetition;
-                    im_header.set = acq_header.idx.set;
+		hoNDArray<float> mag(rep_array.get_dimensions());
+		hoNDArray<float> mean(image_dims_[0],image_dims_[1]);
+		hoNDArray<float> std(image_dims_[0],image_dims_[1]);
 
-                    im_header.acquisition_time_stamp = acq_header.acquisition_time_stamp;
+		Gadgetron::abs(rep_array, mag);
+		Gadgetron::sum_over_dimension(mag,mean,2);
+		Gadgetron::scal(1.0f/replicas.value(), mean);
 
-					std::copy(acq_header.physiology_time_stamp,std::end(acq_header.physiology_time_stamp),im_header.physiology_time_stamp);
+		mag -= mean;
+		mag *= mag;
 
-                    im_header.image_type = ISMRMRD::ISMRMRD_IMTYPE_COMPLEX;
-                    im_header.image_index = (uint16_t)(n + s*N + slc*N*S);
-                    im_header.image_series_index = 0;
+		Gadgetron::sum_over_dimension(mag,std,2);
+		Gadgetron::scal(1.0f/(replicas.value()-1), std);
+		Gadgetron::sqrt_inplace(&std);
 
-                    std::copy(acq_header.user_float,std::end(acq_header.user_float),im_header.user_float);
-					std::copy(acq_header.user_int,std::end(acq_header.user_int),im_header.user_int);
+		//SNR image
+		mean /= std;
+		IsmrmrdImageArray imarray;
+		imarray.data_ = *real_to_complex< std::complex<float> >(&mean);
 
-                    im_header.attribute_string_len = 0;
+		NonCartesian::append_image_header(imarray,recon_bit, encoding);
+		this->send_out_image_array(imarray, encoding, image_series + 100 * ((int)encoding + 3), GADGETRON_IMAGE_SNR_MAP);
 
-                    meta.set("encoding", (long)e);
-
-                    meta.set("encoding_FOV"         , recon_bit.data_.sampling_.encoded_FOV_[0]);
-                    meta.append("encoding_FOV"      , recon_bit.data_.sampling_.encoded_FOV_[1]);
-                    meta.append("encoding_FOV"      , recon_bit.data_.sampling_.encoded_FOV_[2]);
-
-                    meta.set("recon_FOV"            , recon_bit.data_.sampling_.recon_FOV_[0]);
-                    meta.append("recon_FOV"         , recon_bit.data_.sampling_.recon_FOV_[1]);
-                    meta.append("recon_FOV"         , recon_bit.data_.sampling_.recon_FOV_[2]);
-
-                    meta.set("encoded_matrix"       , (long)recon_bit.data_.sampling_.encoded_matrix_[0]);
-                    meta.append("encoded_matrix"    , (long)recon_bit.data_.sampling_.encoded_matrix_[1]);
-                    meta.append("encoded_matrix"    , (long)recon_bit.data_.sampling_.encoded_matrix_[2]);
-
-                    meta.set("recon_matrix"         , (long)recon_bit.data_.sampling_.recon_matrix_[0]);
-                    meta.append("recon_matrix"      , (long)recon_bit.data_.sampling_.recon_matrix_[1]);
-                    meta.append("recon_matrix"      , (long)recon_bit.data_.sampling_.recon_matrix_[2]);
-
-                    meta.set("sampling_limits_RO"   , (long)recon_bit.data_.sampling_.sampling_limits_[0].min_);
-                    meta.append("sampling_limits_RO", (long)recon_bit.data_.sampling_.sampling_limits_[0].center_);
-                    meta.append("sampling_limits_RO", (long)recon_bit.data_.sampling_.sampling_limits_[0].max_);
-
-                    meta.set("sampling_limits_E1"   , (long)recon_bit.data_.sampling_.sampling_limits_[1].min_);
-                    meta.append("sampling_limits_E1", (long)recon_bit.data_.sampling_.sampling_limits_[1].center_);
-                    meta.append("sampling_limits_E1", (long)recon_bit.data_.sampling_.sampling_limits_[1].max_);
-
-                    meta.set("sampling_limits_E2"   , (long)recon_bit.data_.sampling_.sampling_limits_[2].min_);
-                    meta.append("sampling_limits_E2", (long)recon_bit.data_.sampling_.sampling_limits_[2].center_);
-                    meta.append("sampling_limits_E2", (long)recon_bit.data_.sampling_.sampling_limits_[2].max_);
-
-                    meta.set("PatientPosition", (double)res.headers_(n, s, slc).position[0]);
-                    meta.append("PatientPosition", (double)res.headers_(n, s, slc).position[1]);
-                    meta.append("PatientPosition", (double)res.headers_(n, s, slc).position[2]);
-
-                    meta.set("read_dir", (double)res.headers_(n, s, slc).read_dir[0]);
-                    meta.append("read_dir", (double)res.headers_(n, s, slc).read_dir[1]);
-                    meta.append("read_dir", (double)res.headers_(n, s, slc).read_dir[2]);
-
-                    meta.set("phase_dir", (double)res.headers_(n, s, slc).phase_dir[0]);
-                    meta.append("phase_dir", (double)res.headers_(n, s, slc).phase_dir[1]);
-                    meta.append("phase_dir", (double)res.headers_(n, s, slc).phase_dir[2]);
-
-                    meta.set("slice_dir", (double)res.headers_(n, s, slc).slice_dir[0]);
-                    meta.append("slice_dir", (double)res.headers_(n, s, slc).slice_dir[1]);
-                    meta.append("slice_dir", (double)res.headers_(n, s, slc).slice_dir[2]);
-
-                    meta.set("patient_table_position", (double)res.headers_(n, s, slc).patient_table_position[0]);
-                    meta.append("patient_table_position", (double)res.headers_(n, s, slc).patient_table_position[1]);
-                    meta.append("patient_table_position", (double)res.headers_(n, s, slc).patient_table_position[2]);
-
-                    meta.set("acquisition_time_stamp", (long)res.headers_(n, s, slc).acquisition_time_stamp);
-
-                    meta.set("physiology_time_stamp", (long)res.headers_(n, s, slc).physiology_time_stamp[0]);
-                    meta.append("physiology_time_stamp", (long)res.headers_(n, s, slc).physiology_time_stamp[1]);
-                    meta.append("physiology_time_stamp", (long)res.headers_(n, s, slc).physiology_time_stamp[2]);
-                }
-            }
-        }
 	}
 
-	GADGET_FACTORY_DECLARE(GriddingReconGadget)
+    GriddingReconGadget::GriddingReconGadget() {
+
+    }
+
+    GriddingReconGadget::~GriddingReconGadget() {
+
+    }
+
+
+    GADGET_FACTORY_DECLARE(GriddingReconGadget)
 }
