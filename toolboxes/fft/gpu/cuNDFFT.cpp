@@ -118,7 +118,7 @@ cuNDFFT<T>::fft_int( cuNDArray< complext<T> > *input, std::vector<size_t> *dims_
 
 
 	if (must_permute)
-		*input = *permute(input,&new_dim_order);
+		*input = permute(*input,new_dim_order);
 
 
 		for (size_t i =0; i < dims_to_transform->size(); i++)
@@ -143,7 +143,7 @@ cuNDFFT<T>::fft_int( cuNDArray< complext<T> > *input, std::vector<size_t> *dims_
 	}
 
 	if (must_permute)
-		*input = *permute(input,&reverse_dim_order);
+		*input = permute(*input,reverse_dim_order);
 }
 
 template<class T> void

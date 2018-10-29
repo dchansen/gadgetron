@@ -183,7 +183,7 @@ namespace Gadgetron {
 
     template<class REAL, unsigned int D>
     void hoNFFT_plan<REAL, D>::preprocess(
-            const hoNDArray<vector_td<REAL, D>> &trajectories) {
+            const hoNDArray<vector_td<REAL, D>> &trajectories, NFFT_prep_mode mode) {
 
         GadgetronTimer timer("Preprocess");
         auto trajectories_scaled = trajectories;
@@ -192,8 +192,10 @@ namespace Gadgetron {
            return (point+REAL(0.5))*matrix_size_os_real;
         });
 
-        convolution_matrix = NFFT::make_NFFT_matrix(trajectories_scaled, this->matrix_size_os, W, beta);
-        convolution_matrix_T = NFFT::transpose(convolution_matrix);
+        convolution_matrix = NFFT_internal::make_NFFT_matrix(trajectories_scaled, this->matrix_size_os, W, beta);
+        if (mode == NFFT_prep_mode::ALL || mode == NFFT_prep_mode::NC2C) {
+            convolution_matrix_T = NFFT_internal::transpose(convolution_matrix);
+        }
 
     }
 
@@ -325,7 +327,7 @@ namespace Gadgetron {
 
     namespace {
         template<class REAL> void
-        matrix_vector_multiply(const Gadgetron::NFFT::NFFT_Matrix<REAL>& matrix, const std::complex<REAL>* vector, std::complex<REAL>* result) {
+        matrix_vector_multiply(const Gadgetron::NFFT_internal::NFFT_Matrix<REAL>& matrix, const complext<REAL>* vector, complext<REAL>* result) {
 
             for (size_t i = 0; i < matrix.n_cols; i++) {
                 auto &row_indices = matrix.indices[i];
@@ -353,7 +355,7 @@ namespace Gadgetron {
             const ComplexType* cartesian_view = cartesian.get_data_ptr()+b*convolution_matrix.n_rows;
             ComplexType* non_cartesian_view = non_cartesian.get_data_ptr()+b*convolution_matrix.n_cols;
 
-            matrix_vector_multiply(convolution_matrix,cartesian_view,non_cartesian_view);
+            matrix_vector_multiply(convolution_matrix,(complext<REAL>*)cartesian_view,(complext<REAL>*)non_cartesian_view);
         }
 
     }
@@ -373,7 +375,7 @@ namespace Gadgetron {
             ComplexType *cartesian_view = cartesian.get_data_ptr() + b * convolution_matrix.n_rows;
             const ComplexType *non_cartesian_view = non_cartesian.get_data_ptr() + b * convolution_matrix.n_cols;
 
-            matrix_vector_multiply(convolution_matrix_T, non_cartesian_view, cartesian_view);
+            matrix_vector_multiply(convolution_matrix_T, (complext<REAL>*)non_cartesian_view, (complext<REAL>*)cartesian_view);
 
         }
     }

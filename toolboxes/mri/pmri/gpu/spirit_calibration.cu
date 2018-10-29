@@ -160,7 +160,7 @@ namespace Gadgetron {
     cuNDArray<float_complext> kspace(dims);
 
     vector_td<size_t,2> offset((old_dims[0]-dims[0])/2,(old_dims[1]-dims[1])/2);
-    crop<float_complext,2>(offset,_kspace,&kspace);
+    crop<float_complext,2>(offset,*_kspace,kspace);
     float sum = nrm2(&kspace);    
     float_complext in_max = kspace[amax(&kspace)];
     kspace /= (float(kspace.get_number_of_elements())/sum);
@@ -295,16 +295,14 @@ namespace Gadgetron {
       boost::shared_ptr< hoNDArray<float_complext> > AHA_h = AHA.to_host();
       boost::shared_ptr< hoNDArray<float_complext> > AHrhs_h = rhs.to_host();
       
-      std::vector<size_t> perm_dim;
-      perm_dim.push_back(1);
-      perm_dim.push_back(0);
+      std::vector<size_t> perm_dim = {1,0};
       
-      permute(AHA_h.get(),&perm_dim);
-      permute(AHrhs_h.get(),&perm_dim);
+      permute(*AHA_h,perm_dim);
+      permute(*AHrhs_h,perm_dim);
       
       ht_grappa_solve_spd_system(AHA_h.get(), AHrhs_h.get());	  
 
-      permute(AHrhs_h.get(),&perm_dim);
+      permute(*AHrhs_h,perm_dim);
       rhs = cuNDArray<float_complext>(*AHrhs_h);
     }
 

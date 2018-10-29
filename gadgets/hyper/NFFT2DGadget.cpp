@@ -190,7 +190,7 @@ namespace Gadgetron{
       // Gridder
       //
       
-      plan.compute( &samples, &image,  
+      plan.compute( samples,image,
                     (dcw->get_number_of_elements()>0) ? dcw.get() : 0x0,
                     NFFT_comp_mode::BACKWARDS_NC2C );
 
@@ -335,20 +335,20 @@ namespace Gadgetron{
       std::vector<size_t> order;
       order.push_back(1); order.push_back(2); order.push_back(0);
       
-      boost::shared_ptr< hoNDArray<float> > host_traj_dcw_shifted = permute( host_traj_dcw.get(), &order );
+      auto host_traj_dcw_shifted = permute( *host_traj_dcw, order );
       
       std::vector<size_t> dims_1d;
-      dims_1d.push_back(host_traj_dcw_shifted->get_size(0)*host_traj_dcw_shifted->get_size(1));
+      dims_1d.push_back(host_traj_dcw_shifted.get_size(0)*host_traj_dcw_shifted.get_size(1));
       
-      hoNDArray<float> tmp(&dims_1d, host_traj_dcw_shifted->get_data_ptr()+2*dims_1d[0]);
+      hoNDArray<float> tmp(&dims_1d, host_traj_dcw_shifted.get_data_ptr()+2*dims_1d[0]);
       *dcw = tmp;
       
       std::vector<size_t> dims_2d = dims_1d; dims_2d.push_back(2);
       order.clear(); order.push_back(1); order.push_back(0);
       
-      tmp.create(&dims_2d, host_traj_dcw_shifted->get_data_ptr());
-      auto _traj = permute( &tmp, &order );
-      hoNDArray<floatd2> tmp2(&dims_1d,(floatd2*)_traj->get_data_ptr());
+      tmp.create(&dims_2d, host_traj_dcw_shifted.get_data_ptr());
+      auto _traj = permute( tmp, order );
+      hoNDArray<floatd2> tmp2(&dims_1d,(floatd2*)_traj.get_data_ptr());
       
       *traj = cuNDArray<floatd2>(tmp2);
     }

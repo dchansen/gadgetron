@@ -36,6 +36,7 @@ namespace Gadgetron{
   protected:
     boost::shared_ptr< cuNFFT_plan<REAL, D> > plan_;
     boost::shared_ptr< cuNDArray<REAL> > dcw_;
+    ConvolutionType convolutionType;
     bool is_preprocessed_;
   };
   

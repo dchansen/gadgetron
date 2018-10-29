@@ -11,7 +11,6 @@ namespace Gadgetron{
   {
     acc_buffer_ = boost::shared_ptr< cuNDArray<_complext> >(new cuNDArray<_complext>);
     cyc_buffer_ = boost::shared_ptr< cuNDArray<_complext> >(new cuNDArray<_complext>);
-    nfft_plan_  = make_cuNFFT_plan<REAL,D>();
     num_coils_ = 0;
     cur_idx_ = cur_sub_idx_ = 0;
     cycle_length_ = 0; sub_cycle_length_ = 0;
@@ -48,8 +47,8 @@ namespace Gadgetron{
     cycle_length_ = num_cycles+1; // +1 as we need a "working buffer" in a addition to 'cycle_length' full ones
     sub_cycle_length_ = num_sub_cycles;
 
-    if( !nfft_plan_->is_setup() || matrix_size_changed || matrix_size_os_changed || kernel_changed ){
-      nfft_plan_->setup( matrix_size_, matrix_size_os_, W );
+    if( !nfft_plan_ || matrix_size_changed || matrix_size_os_changed || kernel_changed ){
+      nfft_plan_ = NFFT<cuNDArray,REAL,D>::make_plan( matrix_size_, matrix_size_os_, W );
     }
     
     std::vector<size_t> dims = to_std_vector(matrix_size_os_);    
@@ -100,7 +99,7 @@ namespace Gadgetron{
     // Convolve to form k-space frame (accumulation mode)
     //
     
-    nfft_plan_->convolve( samples, &cur_buffer, dcw_.get(), NFFT_conv_mode::NC2C, true );
+    nfft_plan_->convolve( *samples, cur_buffer, dcw_.get(), NFFT_conv_mode::NC2C, true );
 
     // Update the accumulation buffer (if it is time...)
     //
@@ -162,13 +161,13 @@ namespace Gadgetron{
     cuNDArray<_complext> acc_copy = *acc_buffer_;
 
     // FFT
-    nfft_plan_->fft( &acc_copy, NFFT_fft_mode::BACKWARDS );
+    nfft_plan_->fft( acc_copy, NFFT_fft_mode::BACKWARDS );
     
     // Deapodize
-    nfft_plan_->deapodize( &acc_copy );
+    nfft_plan_->deapodize( acc_copy );
     
     // Remove oversampling
-    crop<_complext,D>( (matrix_size_os_-matrix_size_)>>1, &acc_copy, acc_image_.get() );
+    crop<_complext,D>( (matrix_size_os_-matrix_size_)>>1, acc_copy, *acc_image_ );
     
     //if( normalize ){
     //REAL scale = REAL(1)/(((REAL)cycle_length_-REAL(1))*(REAL)sub_cycle_length_);

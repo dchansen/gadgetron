@@ -70,116 +70,18 @@ extern __shared__ char _shared_mem[];
 
 
 
-// Common multi-this->device handling: prepare
-//
-template<class I1, class I2=float, class I3=float>
-static bool prepare(int device, int *old_device,
-                    cuNDArray <I1> *in1, cuNDArray <I1> **in1_int,
-                    cuNDArray <I2> *in2 = 0x0, cuNDArray <I2> **in2_int = 0x0,
-                    cuNDArray <I3> *in3 = 0x0, cuNDArray <I3> **in3_int = 0x0) {
-    // Get current Cuda this->device
-    if (cudaGetDevice(old_device) != cudaSuccess) {
-        throw cuda_error("Error: cuNFFT : unable to get this->device no");
-    }
-
-    if (device != *old_device && cudaSetDevice(device) != cudaSuccess) {
-        throw cuda_error("Error : cuNFFT : unable to set this->device no");
-    }
-
-    // Transfer arrays to compute this->device if necessary
-    if (in1) {
-        if (device != in1->get_device())
-            *in1_int = new cuNDArray<I1>(*in1); // this->device transfer
-        else
-            *in1_int = in1;
-    }
-
-    if (in2) {
-        if (device != in2->get_device())
-            *in2_int = new cuNDArray<I2>(*in2); // this->device transfer
-        else
-            *in2_int = in2;
-    }
-
-    if (in3) {
-        if (device != in3->get_device())
-            *in3_int = new cuNDArray<I3>(*in3); // this->device transfer
-        else
-            *in3_int = in3;
-    }
-
-    return true;
-}
-
-// Common multi-this->device handling: restore
-//
-template<class I1, class I2=float, class I3=float>
-static bool restore(int old_device, cuNDArray <I1> *out,
-                    cuNDArray <I1> *in1, cuNDArray <I1> *in1_int,
-                    cuNDArray <I2> *in2 = 0x0, cuNDArray <I2> *in2_int = 0x0,
-                    cuNDArray <I3> *in3 = 0x0, cuNDArray <I3> *in3_int = 0x0) {
-    if (in1 && out && out->get_device() != in1_int->get_device()) {
-        *out = *in1_int; // this->device transfer by assignment
-    }
-
-    // Check if internal array needs deletion (they do only if they were created in ::prepare()
-    //
-    if (in1 && in1->get_device() != in1_int->get_device()) {
-        delete in1_int;
-    }
-    if (in2 && in2->get_device() != in2_int->get_device()) {
-        delete in2_int;
-    }
-    if (in3 && in3->get_device() != in3_int->get_device()) {
-        delete in3_int;
-    }
-
-    // Get current Cuda this->device
-    int device;
-    if (cudaGetDevice(&device) != cudaSuccess) {
-        throw cuda_error("Error: cuNFFT : unable to get this->device no");
-    }
-
-    // Restore old this->device
-    if (device != old_device && cudaSetDevice(old_device) != cudaSuccess) {
-        throw cuda_error("Error: cuNFFT : unable to restore this->device no");
-    }
-
-    return true;
-}
 
 
 //
 // Public class methods
 //
 
-template<class REAL, unsigned int D, ConvolutionType CONV>
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::cuNFFT_impl() {
-    // Minimal initialization
-    barebones();
-}
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
 Gadgetron::cuNFFT_impl<REAL, D, CONV>::cuNFFT_impl(typename uint64d<D>::Type matrix_size,
                                                    typename uint64d<D>::Type matrix_size_os, REAL W, int _device) {
     // Minimal initialization
     barebones();
-
-    // Setup plan
-    setup(matrix_size, matrix_size_os, W, _device);
-}
-
-template<class REAL, unsigned int D, ConvolutionType CONV>
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::~cuNFFT_impl() {
-    wipe(NFFT_wipe_mode::ALL);
-}
-
-template<class REAL, unsigned int D, ConvolutionType CONV>
-void Gadgetron::cuNFFT_impl<REAL, D, CONV>::setup(typename uint64d<D>::Type matrix_size,
-                                                  typename uint64d<D>::Type matrix_size_os, REAL W, int _device) {
-    // Free memory
-    wipe(NFFT_wipe_mode::ALL);
-
     //
     // Check if the this->device is valid
     //
@@ -244,42 +146,30 @@ void Gadgetron::cuNFFT_impl<REAL, D, CONV>::setup(typename uint64d<D>::Type matr
     if (this->device != device_no_old && cudaSetDevice(this->device) != cudaSuccess) {
         throw cuda_error("Error: cuNFFT_impl::setup: unable to set this->device");
     }
-    this->initialized = true;
 
     if (this->device != device_no_old && cudaSetDevice(device_no_old) != cudaSuccess) {
         throw cuda_error("Error: cuNFFT_impl::setup: unable to restore this->device");
     }
+    // Setup plan
 }
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
-void Gadgetron::cuNFFT_impl<REAL, D, CONV>::preprocess(cuNDArray<typename reald<REAL, D>::Type> *trajectory,
+Gadgetron::cuNFFT_impl<REAL, D, CONV>::~cuNFFT_impl() {
+}
+
+
+template<class REAL, unsigned int D, ConvolutionType CONV>
+void Gadgetron::cuNFFT_impl<REAL, D, CONV>::preprocess(const cuNDArray<typename reald<REAL, D>::Type>& trajectory,
                                                        NFFT_prep_mode mode) {
-    if (!trajectory || trajectory->get_number_of_elements() == 0) {
-        throw std::runtime_error("Error: cuNFFT_impl::preprocess: invalid trajectory");
-    }
 
-    if (!this->initialized) {
-        throw std::runtime_error(
-                "Error: cuNFFT_impl::preprocess: cuNFFT_impl::setup must be invoked prior to preprocessing.");
-    }
+    number_of_samples = trajectory.get_size(0);
+    number_of_frames = trajectory.get_number_of_elements() / number_of_samples;
 
-    wipe(NFFT_wipe_mode::PREPROCESSING);
-
-    cuNDArray<typename reald<REAL, D>::Type> *trajectory_int;
-    int old_device;
-
-    if (!prepare<typename reald<REAL, D>::Type>(this->device, &old_device, trajectory, &trajectory_int)) {
-        throw cuda_error("Error: cuNFFT_impl::preprocess: this->device preparation error.");
-    }
-
-    number_of_samples = trajectory_int->get_size(0);
-    number_of_frames = trajectory_int->get_number_of_elements() / number_of_samples;
+    cuNDArray<REAL> trajectory_view (std::vector<size_t>{trajectory.get_number_of_elements()*D},(REAL*)trajectory.get_data_ptr());
 
     // Make sure that the trajectory values are within range [-1/2;1/2]
     thrust::pair<thrust::device_ptr<REAL>, thrust::device_ptr<REAL> > mm_pair =
-            thrust::minmax_element(device_pointer_cast < REAL > ((REAL *) trajectory_int->get_data_ptr()),
-                                   device_pointer_cast < REAL > (((REAL *) trajectory_int->get_data_ptr()) +
-                                                                 trajectory_int->get_number_of_elements() * D));
+            thrust::minmax_element(trajectory_view.begin(), trajectory_view.end());
 
     if (*mm_pair.first < REAL(-0.5) || *mm_pair.second > REAL(0.5)) {
         std::stringstream ss;
@@ -288,13 +178,7 @@ void Gadgetron::cuNFFT_impl<REAL, D, CONV>::preprocess(cuNDArray<typename reald<
         throw std::runtime_error(ss.str());
     }
 
-    // Make Thrust this->device vector of trajectory and samples
-    device_vector<vector_td<REAL, D> > trajectory_positions_in
-            (device_pointer_cast < vector_td<REAL, D> > (trajectory_int->get_data_ptr()),
-             device_pointer_cast < vector_td<REAL, D> >
-             (trajectory_int->get_data_ptr() + trajectory_int->get_number_of_elements()));
-
-    trajectory_positions = device_vector<vector_td<REAL, D> >(trajectory_int->get_number_of_elements());
+    trajectory_positions = device_vector<vector_td<REAL, D> >(trajectory.get_number_of_elements());
 
     CHECK_FOR_CUDA_ERROR();
 
@@ -304,7 +188,7 @@ void Gadgetron::cuNFFT_impl<REAL, D, CONV>::preprocess(cuNDArray<typename reald<
     matrix_size_os_plus_wrap_real = vector_td<REAL, D>((this->matrix_size_os + this->matrix_size_wrap) >> 1);
 
     // convert input trajectory in [-1/2;1/2] to [0;this->matrix_size_os]
-    thrust::transform(trajectory_positions_in.begin(), trajectory_positions_in.end(), trajectory_positions.begin(),
+    thrust::transform(trajectory.begin(), trajectory.end(), trajectory_positions.begin(),
                       trajectory_scale<REAL, D>(matrix_size_os_real, matrix_size_os_plus_wrap_real));
 
     CHECK_FOR_CUDA_ERROR();
@@ -317,9 +201,6 @@ void Gadgetron::cuNFFT_impl<REAL, D, CONV>::preprocess(cuNDArray<typename reald<
     if (mode != NFFT_prep_mode::C2NC)
         preprocessed_NC2C = true;
 
-    if (!restore<typename reald<REAL, D>::Type>(old_device, trajectory, trajectory, trajectory_int)) {
-        throw cuda_error("Error: cuNFFT_impl::preprocess: unable to restore compute this->device.");
-    }
 }
 
 template<class REAL, unsigned int D>
@@ -384,258 +265,198 @@ cuNFFT::convolverNC2C<REAL, D, ConvolutionType::STANDARD>::prepare(cuNFFT_impl<R
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
 void
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute(cuNDArray <complext<REAL>> *in, cuNDArray <complext<REAL>> *out,
-                                               cuNDArray <REAL> *dcw, NFFT_comp_mode mode) {
+Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute(const cuNDArray <complext<REAL>> &in, cuNDArray <complext<REAL>>& out,
+                                               const cuNDArray <REAL> *dcw, NFFT_comp_mode mode) {
     // Validity checks
     {
-        cuNDArray <complext<REAL>> *samples, *image;
+        const cuNDArray <complext<REAL>> *samples;
+        const cuNDArray<complext<REAL>> *image;
 
         if (mode == NFFT_comp_mode::FORWARDS_C2NC || mode == NFFT_comp_mode::BACKWARDS_C2NC) {
-            image = in;
-            samples = out;
+            image = &in;
+            samples = &out;
         } else {
-            image = out;
-            samples = in;
+            image = &out;
+            samples = &in;
         }
 
         check_consistency(samples, image, dcw);
     }
 
-    cuNDArray <complext<REAL>> *in_int = 0x0, *out_int = 0x0;
-    cuNDArray <REAL> *dcw_int = 0x0;
-    int old_device;
-
-    if (!prepare<complext < REAL>, complext < REAL >, REAL >
-                                                      (this->device, &old_device, in, &in_int, out, &out_int, dcw, &dcw_int)) {
-        throw cuda_error("Error: cuNFFT_impl::compute: this->device preparation error.");
-    }
-
     typename uint64d<D>::Type image_dims = from_std_vector<size_t, D>
-            ((mode == NFFT_comp_mode::FORWARDS_C2NC || mode == NFFT_comp_mode::BACKWARDS_C2NC) ? *in->get_dimensions()
-                                                                                               : *out->get_dimensions());
+            ((mode == NFFT_comp_mode::FORWARDS_C2NC || mode == NFFT_comp_mode::BACKWARDS_C2NC) ? *in.get_dimensions()
+                                                                                               : *out.get_dimensions());
     bool oversampled_image = (image_dims == this->matrix_size_os);
 
     vector<size_t> vec_dims = to_std_vector(this->matrix_size_os);
     {
-        cuNDArray <complext<REAL>> *image = ((mode == NFFT_comp_mode::FORWARDS_C2NC ||
-                                              mode == NFFT_comp_mode::BACKWARDS_C2NC) ? in : out);
+        const auto image = ((mode == NFFT_comp_mode::FORWARDS_C2NC ||
+                                              mode == NFFT_comp_mode::BACKWARDS_C2NC) ? &in : &out);
         for (unsigned int d = D; d < image->get_number_of_dimensions(); d++)
             vec_dims.push_back(image->get_size(d));
     }
 
-    cuNDArray <complext<REAL>> *working_image = 0x0, *working_samples = 0x0;
 
     switch (mode) {
 
-        case NFFT_comp_mode::FORWARDS_C2NC:
-
+        case NFFT_comp_mode::FORWARDS_C2NC: {
             if (!oversampled_image) {
-                working_image = new cuNDArray <complext<REAL>>(&vec_dims);
-                pad < complext < REAL > , D > (in_int, working_image);
+                auto working_image = cuNDArray <complext<REAL>>(&vec_dims);
+                pad<complext<REAL>,D> (in, working_image);
+                compute_NFFT_C2NC(working_image, out);
             } else {
-                working_image = in_int;
+                auto copy = in;
+                compute_NFFT_C2NC(copy, out);
             }
 
-            compute_NFFT_C2NC(working_image, out_int);
-
-            if (dcw_int)
-                *out_int *= *dcw_int;
-
-            if (!oversampled_image) {
-                delete working_image;
-                working_image = 0x0;
+            if (dcw){
+                out *= *dcw;
             }
-            break;
 
-        case NFFT_comp_mode::FORWARDS_NC2C:
+        }
+        break;
+
+        case NFFT_comp_mode::FORWARDS_NC2C: {
 
             // Density compensation
-            if (dcw_int) {
-                working_samples = new cuNDArray <complext<REAL>>(*in_int);
-                *working_samples *= *dcw_int;
-            } else {
-                working_samples = in_int;
+            auto working_samples = in;
+            boost::shared_ptr<cuNDArray<complext<REAL>>> samples_dcw;
+            if (dcw) {
+                working_samples *= *dcw;
             }
 
-            if (!oversampled_image) {
-                working_image = new cuNDArray <complext<REAL>>(&vec_dims);
-            } else {
-                working_image = out_int;
-            }
-
-            compute_NFFT_NC2C(working_samples, working_image);
 
             if (!oversampled_image) {
+                auto working_image = cuNDArray <complext<REAL>>(&vec_dims);
+                compute_NFFT_NC2C(working_samples, working_image);
                 crop < complext < REAL > , D >
-                                           ((this->matrix_size_os - this->matrix_size) >> 1, working_image, out_int);
+                       ((this->matrix_size_os - this->matrix_size) >> 1, working_image, out);
+            } else {
+                compute_NFFT_NC2C(working_samples, out);
             }
+        }
+        break;
 
-            if (!oversampled_image) {
-                delete working_image;
-            }
-
-            if (dcw_int) {
-                delete working_samples;
-            }
-            break;
-
-        case NFFT_comp_mode::BACKWARDS_NC2C:
+        case NFFT_comp_mode::BACKWARDS_NC2C: {
 
             // Density compensation
-            if (dcw_int) {
-                working_samples = new cuNDArray <complext<REAL>>(*in_int);
-                *working_samples *= *dcw_int;
-            } else {
-                working_samples = in_int;
+            const cuNDArray<complext<REAL>>* working_samples = &in;
+            boost::shared_ptr<cuNDArray<complext<REAL>>> samples_dcw;
+            if (dcw) {
+                samples_dcw = boost::make_shared<cuNDArray < complext < REAL>>>(in);
+                *samples_dcw *= *dcw;
+                working_samples = samples_dcw.get();
             }
 
-            if (!oversampled_image) {
-                working_image = new cuNDArray <complext<REAL>>(&vec_dims);
-            } else {
-                working_image = out_int;
-            }
-
-            compute_NFFTH_NC2C(working_samples, working_image);
 
             if (!oversampled_image) {
+                auto working_image = cuNDArray <complext<REAL>>(&vec_dims);
+                compute_NFFTH_NC2C(working_samples, working_image);
                 crop < complext < REAL > , D >
-                                           ((this->matrix_size_os - this->matrix_size) >> 1, working_image, out_int);
-            }
-
-            if (!oversampled_image) {
-                delete working_image;
-            }
-
-            if (dcw_int) {
-                delete working_samples;
-            }
-            break;
-
-        case NFFT_comp_mode::BACKWARDS_C2NC:
-
-            if (!oversampled_image) {
-                working_image = new cuNDArray <complext<REAL>>(&vec_dims);
-
-                pad < complext < REAL > , D > (in_int, working_image);
+                                           ((this->matrix_size_os - this->matrix_size) >> 1, &working_image, out);
             } else {
-                working_image = in_int;
+                compute_NFFTH_NC2C(*working_samples, out);
             }
 
-            compute_NFFTH_C2NC(working_image, out_int);
+        }
+        break;
 
-            if (dcw_int)
-                *out_int *= *dcw_int;
-
+        case NFFT_comp_mode::BACKWARDS_C2NC: {
 
             if (!oversampled_image) {
-                delete working_image;
+                auto working_image = cuNDArray < complext < REAL >> (&vec_dims);
+                pad < complext < REAL > , D > (in, working_image);
+                compute_NFFTH_C2NC(working_image, out);
+            } else {
+                auto copy = in;
+                compute_NFFTH_C2NC(copy, out);
             }
 
-            break;
+            if (dcw)
+                out *= *dcw;
+        }
+
+        break;
     };
 
-    if (!restore<complext < REAL>, complext < REAL >, REAL >
-                                                      (old_device, out, out, out_int, in, in_int, dcw, dcw_int)) {
-        throw cuda_error("Error: cuNFFT_impl::compute: unable to restore compute this->device.");
-    }
 
     CHECK_FOR_CUDA_ERROR();
 }
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
 void
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::mult_MH_M(cuNDArray <complext<REAL>> *in, cuNDArray <complext<REAL>> *out,
-                                                 cuNDArray <REAL> *dcw, std::vector<size_t> halfway_dims) {
+Gadgetron::cuNFFT_impl<REAL, D, CONV>::mult_MH_M(const cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>>& out,
+                                                 const cuNDArray <REAL> *dcw, std::vector<size_t> halfway_dims) {
     // Validity checks
-
-
-    if (in->get_number_of_elements() != out->get_number_of_elements()) {
+    if (in.get_number_of_elements() != out.get_number_of_elements()) {
         throw std::runtime_error("Error: cuNFFT_impl::mult_MH_M: in/out image sizes mismatch");
     }
 
-    cuNDArray <complext<REAL>> *working_samples = new cuNDArray <complext<REAL>>(&halfway_dims);
+    cuNDArray <complext<REAL>> working_samples(&halfway_dims);
 
-    check_consistency(working_samples, in, dcw);
+    check_consistency(&working_samples, &in, dcw);
 
-    cuNDArray <complext<REAL>> *in_int = 0x0;
-    cuNDArray <complext<REAL>> *out_int = 0x0;
-    cuNDArray <REAL> *dcw_int = 0x0;
-    int old_device;
 
-    if (!prepare<complext < REAL>, complext < REAL >, REAL >
-                                                      (this->device, &old_device, in, &in_int, out, &out_int, dcw, &dcw_int)) {
-        throw cuda_error("Error: cuNFFT_impl::mult_MH_M: this->device preparation error.");
-    }
-
-    cuNDArray <complext<REAL>> *working_image = 0x0;
-
-    typename uint64d<D>::Type image_dims = from_std_vector<size_t, D>(*in->get_dimensions());
+    typename uint64d<D>::Type image_dims = from_std_vector<size_t, D>(*in.get_dimensions());
     bool oversampled_image = (image_dims == this->matrix_size_os);
 
     vector<size_t> vec_dims = to_std_vector(this->matrix_size_os);
-    for (unsigned int d = D; d < in->get_number_of_dimensions(); d++)
-        vec_dims.push_back(in->get_size(d));
+    for (unsigned int d = D; d < in.get_number_of_dimensions(); d++)
+        vec_dims.push_back(in.get_size(d));
 
     if (!oversampled_image) {
-        working_image = new cuNDArray <complext<REAL>>(&vec_dims);
-        pad < complext < REAL > , D > (in_int, working_image);
+        auto working_image = cuNDArray <complext<REAL>>(&vec_dims);
+        pad < complext < REAL > , D > (in, working_image);
+        compute_NFFT_C2NC(working_image, working_samples);
     } else {
-        working_image = in_int;
+        auto working_image = in;
+        compute_NFFT_C2NC(working_image, working_samples);
     }
 
-    compute_NFFT_C2NC(working_image, working_samples);
 
     // Density compensation
     if (dcw) {
-        *working_samples *= *dcw_int;
-        *working_samples *= *dcw_int;
+        working_samples *= *dcw;
+        working_samples *= *dcw;
     }
 
-    compute_NFFTH_NC2C(working_samples, working_image);
-
-    delete working_samples;
 
     if (!oversampled_image) {
-        crop < complext < REAL > , D > ((this->matrix_size_os - this->matrix_size) >> 1, working_image, out_int);
-        delete working_image;
-    }
+        auto working_image = cuNDArray<complext<REAL>>(&vec_dims);
+        compute_NFFTH_NC2C(working_samples, working_image);
+        crop < complext < REAL > , D > ((this->matrix_size_os - this->matrix_size) >> 1, working_image, out);
 
-    restore<complext < REAL>, complext < REAL >, REAL >
-                                                 (old_device, out, out, out_int, in, in_int, dcw, dcw_int);
+    } else {
+        compute_NFFTH_NC2C(working_samples, out);
+    }
 
     CHECK_FOR_CUDA_ERROR();
 }
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
 void
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::convolve(cuNDArray <complext<REAL>> *in, cuNDArray <complext<REAL>> *out,
-                                                cuNDArray <REAL> *dcw, NFFT_conv_mode mode, bool accumulate) {
+Gadgetron::cuNFFT_impl<REAL, D, CONV>::convolve(const cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>> & out,
+                                                const cuNDArray <REAL> *dcw, NFFT_conv_mode mode, bool accumulate) {
 
     {
-        cuNDArray <complext<REAL>> *samples, *image;
+        const cuNDArray <complext<REAL>> *samples, *image;
 
         if (mode == NFFT_conv_mode::C2NC) {
-            image = in;
-            samples = out;
+            image = &in;
+            samples = &out;
         } else {
-            image = out;
-            samples = in;
+            image = &out;
+            samples = &in;
         }
 
         check_consistency(samples, image, dcw);
     }
 
-    cuNDArray <complext<REAL>> *in_int = 0x0, *out_int = 0x0;
-    cuNDArray <REAL> *dcw_int = 0x0;
-    int old_device;
 
-    prepare<complext < REAL>, complext < REAL >, REAL >
-                                                 (this->device, &old_device, in, &in_int, out, &out_int, dcw, &dcw_int);
 
-    cuNDArray <complext<REAL>> *working_samples = 0x0;
 
     typename uint64d<D>::Type image_dims = from_std_vector<size_t, D>
-            (*(((mode == NFFT_conv_mode::C2NC) ? in : out)->get_dimensions()));
+            (*(((mode == NFFT_conv_mode::C2NC) ? in : out).get_dimensions()));
     bool oversampled_image = (image_dims == this->matrix_size_os);
 
     if (!oversampled_image) {
@@ -644,76 +465,57 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::convolve(cuNDArray <complext<REAL>> *in, 
 
     vector<size_t> vec_dims = to_std_vector(this->matrix_size_os);
     {
-        cuNDArray <complext<REAL>> *image = ((mode == NFFT_conv_mode::C2NC) ? in : out);
-        for (unsigned int d = D; d < image->get_number_of_dimensions(); d++)
-            vec_dims.push_back(image->get_size(d));
+        const cuNDArray <complext<REAL>>& image = ((mode == NFFT_conv_mode::C2NC) ? in : out);
+        for (unsigned int d = D; d < image.get_number_of_dimensions(); d++)
+            vec_dims.push_back(image.get_size(d));
     }
 
     switch (mode) {
 
         case NFFT_conv_mode::C2NC:
-            convC2NC.convolve_C2NC(this,in_int, out_int, accumulate);
-            if (dcw_int) *out_int *= *dcw_int;
+            convC2NC.convolve_C2NC(this,&in, &out, accumulate);
+            if (dcw) out *= *dcw;
             break;
 
         case NFFT_conv_mode::NC2C:
 
             // Density compensation
-            if (dcw_int) {
-                working_samples = new cuNDArray <complext<REAL>>(*in_int);
-                *working_samples *= *dcw_int;
+            if (dcw) {
+                auto working_samples = cuNDArray <complext<REAL>>(in);
+                working_samples *= *dcw;
+                convNC2C.convolve_NC2C(this, &working_samples, &out, accumulate);
             } else {
-                working_samples = in_int;
+                convNC2C.convolve_NC2C(this, &in, &out, accumulate);
             }
 
-            convNC2C.convolve_NC2C(this, working_samples, out_int, accumulate);
-
-            if (dcw_int) {
-                delete working_samples;
-            }
             break;
 
         default:
             throw std::runtime_error("Error: cuNFFT_impl::convolve: unknown mode.");
     }
 
-    restore<complext < REAL>, complext < REAL >, REAL >
-                                                 (old_device, out, out, out_int, in, in_int, dcw, dcw_int);
 }
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
 void
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::fft(cuNDArray <complext<REAL>> *data, NFFT_fft_mode mode, bool do_scale) {
-    cuNDArray <complext<REAL>> *data_int = 0x0;
-    int old_device;
-
-    prepare<complext < REAL>>
-    (this->device, &old_device, data, &data_int);
+Gadgetron::cuNFFT_impl<REAL, D, CONV>::fft(cuNDArray <complext<REAL>>& data, NFFT_fft_mode mode, bool do_scale) {
 
     typename uint64d<D>::Type _dims_to_transform = counting_vec<size_t, D>();
     vector<size_t> dims_to_transform = to_std_vector(_dims_to_transform);
 
     if (mode == NFFT_fft_mode::FORWARDS) {
-        cuNDFFT<REAL>::instance()->fft(data_int, &dims_to_transform, do_scale);
+        cuNDFFT<REAL>::instance()->fft(&data, &dims_to_transform, do_scale);
     } else {
-        cuNDFFT<REAL>::instance()->ifft(data_int, &dims_to_transform, do_scale);
+        cuNDFFT<REAL>::instance()->ifft(&data, &dims_to_transform, do_scale);
     }
 
-    restore<complext < REAL> > (old_device, data, data, data_int);
 }
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
 void
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::deapodize(cuNDArray <complext<REAL>> *image, bool fourier_domain) {
-//    check_consistency(0x0, image, 0x0);
+Gadgetron::cuNFFT_impl<REAL, D, CONV>::deapodize(cuNDArray <complext<REAL>>& image, bool fourier_domain) {
 
-    cuNDArray <complext<REAL>> *image_int = 0x0;
-    int old_device;
-
-    prepare<complext < REAL>>
-    (this->device, &old_device, image, &image_int);
-
-    typename uint64d<D>::Type image_dims = from_std_vector<size_t, D>(*image->get_dimensions());
+    typename uint64d<D>::Type image_dims = from_std_vector<size_t, D>(*image.get_dimensions());
     bool oversampled_image = (image_dims == this->matrix_size_os);
 
     if (!oversampled_image) {
@@ -722,14 +524,12 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::deapodize(cuNDArray <complext<REAL>> *ima
     if (fourier_domain) {
         if (!deapodization_filterFFT)
             deapodization_filterFFT = compute_deapodization_filter(true);
-        *image_int *= *deapodization_filterFFT;
+        image *= *deapodization_filterFFT;
     } else {
         if (!deapodization_filter)
             deapodization_filter = compute_deapodization_filter(false);
-        *image_int *= *deapodization_filter;
+        image *= *deapodization_filter;
     }
-
-    restore<complext < REAL> > (old_device, image, image, image_int);
 }
 
 //
@@ -738,13 +538,10 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::deapodize(cuNDArray <complext<REAL>> *ima
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
 void
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::check_consistency(cuNDArray <complext<REAL>> *samples,
-                                                         cuNDArray <complext<REAL>> *image,
-                                                         cuNDArray <REAL> *weights) {
+Gadgetron::cuNFFT_impl<REAL, D, CONV>::check_consistency(const cuNDArray <complext<REAL>> *samples,
+                                                         const cuNDArray <complext<REAL>> *image,
+                                                         const cuNDArray <REAL> *weights) {
 
-    if (!this->initialized) {
-        throw std::runtime_error("Error: cuNFFT_impl: Unable to proceed without setup.");
-    }
 //
 //  if( (components & _NFFT_conv_mode::C2NC ) && !preprocessed_C2NC ){
 //    throw std::runtime_error("Error: cuNFFT_impl: Unable to compute NFFT before preprocessing.");
@@ -815,7 +612,7 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::check_consistency(cuNDArray <complext<REA
 template<class REAL, unsigned int D, ConvolutionType CONV>
 void Gadgetron::cuNFFT_impl<REAL, D, CONV>::barebones() {
     // These are the fundamental booleans checked before accessing the various member pointers
-    this->initialized = preprocessed_C2NC = preprocessed_NC2C = false;
+    preprocessed_C2NC = preprocessed_NC2C = false;
 
     // Clear matrix sizes
     clear(this->matrix_size);
@@ -827,32 +624,7 @@ void Gadgetron::cuNFFT_impl<REAL, D, CONV>::barebones() {
     }
 }
 
-template<class REAL, unsigned int D, ConvolutionType CONV>
-void Gadgetron::cuNFFT_impl<REAL, D, CONV>::wipe(NFFT_wipe_mode mode) {
-    // Get current Cuda this->device
-    int old_device;
-    if (cudaGetDevice(&old_device) != cudaSuccess) {
-        throw cuda_error("Error: cuNFFT_impl::wipe: unable to get this->device no");
-    }
 
-    if (this->device != old_device && cudaSetDevice(this->device) != cudaSuccess) {
-        throw cuda_error("Error: cuNFFT_impl::wipe: unable to set this->device no");
-    }
-
-    if (mode == NFFT_wipe_mode::ALL && this->initialized) {
-        deapodization_filter.reset();
-        this->initialized = false;
-    }
-
-
-    if (preprocessed_C2NC || preprocessed_NC2C) {
-        preprocessed_C2NC = preprocessed_NC2C = false;
-    }
-
-    if (this->device != old_device && cudaSetDevice(old_device) != cudaSuccess) {
-        throw cuda_error("Error: cuNFFT_impl::wipe: unable to restore this->device no");
-    }
-}
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
 void Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_beta() {
@@ -917,7 +689,7 @@ template<class REAL, unsigned int D, ConvolutionType CONV> boost::shared_ptr<cuN
 Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_deapodization_filter(bool FFTed) {
     std::vector<size_t> tmp_vec_os = to_std_vector(this->matrix_size_os);
 
-    boost::shared_ptr<cuNDArray < complext < REAL> > > filter(new cuNDArray <complext<REAL>>(tmp_vec_os));
+    auto  filter = boost::make_shared<cuNDArray<complext<REAL>>>(tmp_vec_os);
     vector_td<REAL, D>
     matrix_size_os_real = vector_td<REAL, D>(this->matrix_size_os);
 
@@ -935,10 +707,11 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_deapodization_filter(bool FFTed) 
     CHECK_FOR_CUDA_ERROR();
 
     // FFT
-    if (FFTed)
-        fft(filter.get(), NFFT_fft_mode::FORWARDS, false);
-    else
-        fft(filter.get(), NFFT_fft_mode::BACKWARDS, false);
+    if (FFTed) {
+        fft(*filter, NFFT_fft_mode::FORWARDS, false);
+    } else {
+        fft(*filter, NFFT_fft_mode::BACKWARDS, false);
+    }
     // Reciprocal
     reciprocal_inplace(filter.get());
     return filter;
@@ -946,8 +719,8 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_deapodization_filter(bool FFTed) 
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
 void
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFT_C2NC(cuNDArray <complext<REAL>> *image,
-                                                         cuNDArray <complext<REAL>> *samples) {
+Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFT_C2NC(cuNDArray <complext<REAL>>& image,
+                                                         cuNDArray <complext<REAL>>& samples) {
     // private method - no consistency check. We trust in ourselves.
 
     // Deapodization
@@ -962,8 +735,8 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFT_C2NC(cuNDArray <complext<REA
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
 void
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFTH_NC2C(cuNDArray <complext<REAL>> *samples,
-                                                          cuNDArray <complext<REAL>> *image) {
+Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFTH_NC2C(const cuNDArray <complext<REAL>>& samples,
+                                                          cuNDArray <complext<REAL>>& image) {
     // private method - no consistency check. We trust in ourselves.
 
     // Convolution
@@ -978,8 +751,8 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFTH_NC2C(cuNDArray <complext<RE
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
 void
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFTH_C2NC(cuNDArray <complext<REAL>> *image,
-                                                          cuNDArray <complext<REAL>> *samples) {
+Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFTH_C2NC(cuNDArray <complext<REAL>>& image,
+                                                          cuNDArray <complext<REAL>>& samples) {
     // private method - no consistency check. We trust in ourselves.
 
     // Deapodization
@@ -994,8 +767,8 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFTH_C2NC(cuNDArray <complext<RE
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
 void
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFT_NC2C(cuNDArray <complext<REAL>> *samples,
-                                                         cuNDArray <complext<REAL>> *image) {
+Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFT_NC2C(const cuNDArray <complext<REAL>>& samples,
+                                                         cuNDArray <complext<REAL>>& image) {
     // private method - no consistency check. We trust in ourselves.
 
     // Convolution
@@ -1022,7 +795,7 @@ template<class REAL, unsigned int D>
 template<class REAL, unsigned int D>
 void cuNFFT::convolverNC2C<REAL, D, ConvolutionType::SPARSE_MATRIX>::convolve_NC2C(
         Gadgetron::cuNFFT_impl<REAL, D, ConvolutionType::SPARSE_MATRIX> *plan,
-        Gadgetron::cuNDArray<complext < REAL>> *samples, Gadgetron::cuNDArray<complext < REAL>> *image, bool accumulate) {
+        const Gadgetron::cuNDArray<complext < REAL>> *samples, Gadgetron::cuNDArray<complext < REAL>> *image, bool accumulate) {
 
 unsigned int number_of_frames = plan->number_of_frames;
 unsigned int number_of_samples = plan->number_of_samples;
@@ -1046,7 +819,7 @@ push_back(number_of_frames);
 //for (int batch = 0; batch<num_batches; batch++) {
 //
 cuNDArray <complext<REAL>> image_view(image_dims, image->get_data_ptr());
-cuNDArray <complext<REAL>> samples_view(sample_dims, samples->get_data_ptr());
+cuNDArray <complext<REAL>> samples_view(sample_dims, const_cast<complext<REAL>*>(samples->get_data_ptr()));
 //
 //sparseMV(complext<REAL>(1.0), complext<REAL>(1.0), transposed, samples_view, image_view,false);
 //}
@@ -1059,7 +832,7 @@ sparseMM(complext<REAL>(1.0),complext<REAL>(1.0),transposed,samples_view,image_v
 template<unsigned int D>
 void cuNFFT::convolverNC2C<float, D, ConvolutionType::ATOMIC>::convolve_NC2C(
         cuNFFT_impl<float, D, ConvolutionType::ATOMIC> *plan,
-        cuNDArray <complext<float>> *samples,
+        const cuNDArray <complext<float>> *samples,
         cuNDArray <complext<float>> *image,
         bool accumulate) {
     //
@@ -1159,7 +932,7 @@ void cuNFFT::convolverNC2C<float, D, ConvolutionType::ATOMIC>::convolve_NC2C(
 
 template<class REAL, unsigned int D>
 void cuNFFT::convolverNC2C<REAL, D, ConvolutionType::STANDARD>::convolve_NC2C(cuNFFT_impl<REAL, D> *plan,
-                                                                          cuNDArray <complext<REAL>> *samples,
+                                                                          const cuNDArray <complext<REAL>> *samples,
                                                                           cuNDArray <complext<REAL>> *image,
                                                                           bool accumulate) {
     // Bring in some variables from the plan
@@ -1246,10 +1019,10 @@ void cuNFFT::convolverNC2C<REAL, D, ConvolutionType::STANDARD>::convolve_NC2C(cu
         size_t num_coils = (repetition == num_repetitions - 1) ? domain_size_coils_tail : domain_size_coils;
 
         auto samples_view = cuNDArray<complext<REAL>>(std::vector<size_t>{number_of_samples, number_of_frames,num_coils},
-                samples->get_data_ptr()+repetition * number_of_samples * number_of_frames * domain_size_coils);
+                const_cast<complext<REAL>*>(samples->get_data_ptr())+repetition * number_of_samples * number_of_frames * domain_size_coils);
 
         std::vector<size_t> permuation = {2,0,1};
-        auto samples_permuted = permute(&samples_view,&permuation);
+        auto samples_permuted = permute(samples_view,permuation);
 
         NFFT_H_convolve_kernel<REAL, D>
                 << < dimGrid, dimBlock,
@@ -1260,7 +1033,7 @@ void cuNFFT::convolverNC2C<REAL, D, ConvolutionType::STANDARD>::convolve_NC2C(cu
                         raw_pointer_cast(&trajectory_positions[0]),
                         tmp_image.get_data_ptr() +
                         repetition * prod(matrix_size_os + matrix_size_wrap) * number_of_frames * domain_size_coils,
-                        samples_permuted->get_data_ptr(),
+                        samples_permuted.get_data_ptr(),
                         raw_pointer_cast(&tuples_last[0]), raw_pointer_cast(&bucket_begin[0]), raw_pointer_cast(
                         &bucket_end[0]),
                         double_warp_size_power, REAL(0.5) * W, REAL(1) / (W), matrix_size_os_real);
@@ -1413,7 +1186,7 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::image_wrap(cuNDArray <complext<REAL>> *so
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
 void Gadgetron::cuNFFT::convolverC2NC<REAL,D,CONV>::convolve_C2NC(Gadgetron::cuNFFT_impl<REAL, D, CONV> *plan,
-                                                     cuNDArray<complext<REAL>> *image,
+                                                     const cuNDArray<complext<REAL>> *image,
                                                      cuNDArray<complext<REAL>> *samples, bool accumulate) {
    // private method - no consistency check. We trust in ourselves.
 
@@ -1475,13 +1248,14 @@ void Gadgetron::cuNFFT::convolverC2NC<REAL,D,CONV>::convolve_C2NC(Gadgetron::cuN
         image_dims.push_back(number_of_frames);
         image_dims.push_back(num_coils);
         size_t image_view_elements = std::accumulate(image_dims.begin(),image_dims.end(),size_t(1),std::multiplies<size_t>());
-        auto image_view = cuNDArray<complext<REAL>>(image_dims, image->get_data_ptr()+repetition*image_view_elements);
+        auto image_view = cuNDArray<complext<REAL>>(image_dims,
+                                                    const_cast<complext<REAL>*>(image->get_data_ptr())+repetition*image_view_elements);
 
         auto permutation = std::vector<size_t>(D+2);
         permutation[0] = D+1;
         std::iota(permutation.begin()+1,permutation.end(),0);
 
-        auto image_permuted  = permute(&image_view,&permutation);
+        auto image_permuted  = permute(image_view,permutation);
 
 
         NFFT_convolve_kernel<REAL, D>
@@ -1492,7 +1266,7 @@ void Gadgetron::cuNFFT::convolverC2NC<REAL,D,CONV>::convolve_C2NC(Gadgetron::cuN
                         plan->matrix_size_wrap), number_of_samples,
                         num_coils,
                         raw_pointer_cast(&plan->trajectory_positions[0]),
-                        image_permuted->get_data_ptr(),
+                        image_permuted.get_data_ptr(),
                         samples->get_data_ptr() + repetition * number_of_samples * number_of_frames * domain_size_coils,
                         double_warp_size_power, REAL(0.5) * plan->W, REAL(1) /
                                                                      (plan->W), accumulate, matrix_size_os_real);
@@ -1501,42 +1275,29 @@ void Gadgetron::cuNFFT::convolverC2NC<REAL,D,CONV>::convolve_C2NC(Gadgetron::cuN
     }
 }
 
-
-
-
-namespace {
+namespace Gadgetron {
     template<class REAL, unsigned int D>
-    struct cuNFFT_creator {
-        static boost::shared_ptr<cuNFFT_plan<REAL, D>> plan(ConvolutionType conv) {
-
-            switch (conv) {
-                case ConvolutionType::STANDARD:
-                    return boost::make_shared<cuNFFT_impl<REAL, D, ConvolutionType::STANDARD> >();
-                case ConvolutionType::ATOMIC:
-                    return boost::make_shared<cuNFFT_impl<REAL, D, ConvolutionType::ATOMIC> >();
-                case ConvolutionType::SPARSE_MATRIX:
-                    return boost::make_shared<cuNFFT_impl<REAL, D, ConvolutionType::SPARSE_MATRIX>>();
-            }
-            throw std::runtime_error(
-                    "Invalid convolution type provided. If you're reading this, you may have broken your computer quite badly");
+    boost::shared_ptr<cuNFFT_plan<REAL, D>> NFFT<cuNDArray, REAL, D>::make_plan(const vector_td<size_t,D>& matrix_size, const vector_td<size_t,D>& matrix_size_os, REAL W, ConvolutionType conv) {
+        switch (conv) {
+            case ConvolutionType::STANDARD:
+                return boost::make_shared<cuNFFT_impl<REAL, D, ConvolutionType::STANDARD> >(matrix_size,matrix_size_os,W);
+            case ConvolutionType::ATOMIC:
+                return boost::make_shared<cuNFFT_impl<REAL, D, ConvolutionType::ATOMIC> >(matrix_size,matrix_size_os,W);
+            case ConvolutionType::SPARSE_MATRIX:
+                return boost::make_shared<cuNFFT_impl<REAL, D, ConvolutionType::SPARSE_MATRIX>>(matrix_size,matrix_size_os,W);
         }
-    };
+        throw std::runtime_error(
+                "Invalid convolution type provided. If you're reading this, you may have broken your computer quite badly");
+    }
 
     template<unsigned int D>
-    struct cuNFFT_creator<double, D> {
-        static boost::shared_ptr<cuNFFT_plan<double, D>> plan(ConvolutionType conv) {
-            if (conv == ConvolutionType::STANDARD) {
-                return boost::make_shared<cuNFFT_impl<double, D, ConvolutionType::STANDARD>>();
-            }
-            throw std::runtime_error("Only standard convolution type supported for doubles");
+
+    boost::shared_ptr<cuNFFT_plan<double, D>> NFFT<cuNDArray, double, D>::make_plan(const vector_td<size_t,D>& matrix_size, const vector_td<size_t,D>& matrix_size_os, double W, ConvolutionType conv) {
+        if (conv == ConvolutionType::STANDARD) {
+            return boost::make_shared<cuNFFT_impl<double, D, ConvolutionType::STANDARD>>(matrix_size,matrix_size_os,W);
         }
-    };
-
-}
-
-template<class REAL, unsigned int D>
-boost::shared_ptr<cuNFFT_plan<REAL, D>> Gadgetron::make_cuNFFT_plan<REAL, D>(ConvolutionType conv) {
-    return cuNFFT_creator<REAL, D>::plan(conv);
+        throw std::runtime_error("Only standard convolution type supported for doubles");
+    }
 }
 
 //
@@ -1594,22 +1355,14 @@ template
 class EXPORTGPUNFFT Gadgetron::cuNFFT_impl<double, 4>;
 
 
-template EXPORTGPUNFFT boost::shared_ptr<cuNFFT_plan<float, 1>> Gadgetron::make_cuNFFT_plan<float, 1>(ConvolutionType);
+template class EXPORTGPUNFFT Gadgetron::NFFT<cuNDArray,float,1>;
+template class EXPORTGPUNFFT Gadgetron::NFFT<cuNDArray,float,2>;
+template class EXPORTGPUNFFT Gadgetron::NFFT<cuNDArray,float,3>;
+template class EXPORTGPUNFFT Gadgetron::NFFT<cuNDArray,float,4>;
 
-template EXPORTGPUNFFT boost::shared_ptr<cuNFFT_plan<float, 2>> Gadgetron::make_cuNFFT_plan<float, 2>(ConvolutionType);
 
-template EXPORTGPUNFFT boost::shared_ptr<cuNFFT_plan<float, 3>> Gadgetron::make_cuNFFT_plan<float, 3>(ConvolutionType);
 
-template EXPORTGPUNFFT boost::shared_ptr<cuNFFT_plan<float, 4>> Gadgetron::make_cuNFFT_plan<float, 4>(ConvolutionType);
-
-template EXPORTGPUNFFT boost::shared_ptr<cuNFFT_plan<double, 1>>
-Gadgetron::make_cuNFFT_plan<double, 1>(ConvolutionType);
-
-template EXPORTGPUNFFT boost::shared_ptr<cuNFFT_plan<double, 2>>
-Gadgetron::make_cuNFFT_plan<double, 2>(ConvolutionType);
-
-template EXPORTGPUNFFT boost::shared_ptr<cuNFFT_plan<double, 3>>
-Gadgetron::make_cuNFFT_plan<double, 3>(ConvolutionType);
-
-template EXPORTGPUNFFT boost::shared_ptr<cuNFFT_plan<double, 4>>
-Gadgetron::make_cuNFFT_plan<double, 4>(ConvolutionType);
+template class EXPORTGPUNFFT Gadgetron::NFFT<cuNDArray,double,1>;
+template class EXPORTGPUNFFT Gadgetron::NFFT<cuNDArray,double,2>;
+template class EXPORTGPUNFFT Gadgetron::NFFT<cuNDArray,double,3>;
+template class EXPORTGPUNFFT Gadgetron::NFFT<cuNDArray,double,4>;

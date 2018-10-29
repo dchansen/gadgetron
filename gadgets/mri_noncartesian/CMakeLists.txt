@@ -15,7 +15,8 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/toolboxes/fft/cpu
     ${CMAKE_SOURCE_DIR}/toolboxes/fft/gpu
     ${CMAKE_SOURCE_DIR}/toolboxes/nfft/gpu    
-		${CMAKE_SOURCE_DIR}/toolboxes/nfft/cpu
+	${CMAKE_SOURCE_DIR}/toolboxes/nfft/cpu
+	${CMAKE_SOURCE_DIR}/toolboxes/nfft
     ${CMAKE_SOURCE_DIR}/toolboxes/core/gpu
     ${CMAKE_SOURCE_DIR}/toolboxes/operators
     ${CMAKE_SOURCE_DIR}/toolboxes/operators/cpu
@@ -32,7 +33,7 @@ include_directories(
 )
 
 set( gadgetron_mri_noncartesian_header_files
-	CPUGriddingReconGadget.h NonCartesianTools.h)
+	CPUGriddingReconGadget.h NonCartesianTools.h GriddingReconGadgetBase.h GriddingReconGadgetBase.hpp)
 
 set( gadgetron_mri_noncartesian_src_files
 	CPUGriddingReconGadget.cpp NonCartesianTools.cpp)

@@ -9,6 +9,7 @@
 #include "hoNDArray_linalg.h"
 #include "hoNDArray_elemwise.h"
 #include "hoNDArray_reductions.h"
+#include "complext.h"
 
 #ifdef USE_OMP
     #include <omp.h>
@@ -23,6 +24,7 @@ void coil_map_2d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
     try
     {
         typedef typename realType<T>::Type value_type;
+        using std::abs;
 
         long long RO = data.get_size(0);
         long long E1 = data.get_size(1);
@@ -189,7 +191,7 @@ void coil_map_2d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
                     {
                         phaseU1 += pU1[po];
                     }
-                    phaseU1 /= std::abs(phaseU1);
+                    phaseU1 /= abs(phaseU1);
 
                     const value_type c = phaseU1.real();
                     const value_type d = phaseU1.imag();
@@ -222,6 +224,8 @@ void coil_map_2d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
 template EXPORTMRICORE void coil_map_2d_Inati(const hoNDArray< std::complex<float> >& data, hoNDArray< std::complex<float> >& coilMap, size_t ks, size_t power);
 template EXPORTMRICORE void coil_map_2d_Inati(const hoNDArray< std::complex<double> >& data, hoNDArray< std::complex<double> >& coilMap, size_t ks, size_t power);
 
+template EXPORTMRICORE void coil_map_2d_Inati(const hoNDArray< complext<float> >& data, hoNDArray< complext<float> >& coilMap, size_t ks, size_t power);
+template EXPORTMRICORE void coil_map_2d_Inati(const hoNDArray< complext<double> >& data, hoNDArray< complext<double> >& coilMap, size_t ks, size_t power);
 // ------------------------------------------------------------------------
 
 template<typename T> 
@@ -230,6 +234,7 @@ void coil_map_3d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
     try
     {
         typedef typename realType<T>::Type value_type;
+        using std::abs;
 
         long long RO = data.get_size(0);
         long long E1 = data.get_size(1);
@@ -371,7 +376,7 @@ void coil_map_3d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
                         {
                             phaseU1 += U1(po, 0);
                         }
-                        phaseU1 /= std::abs(phaseU1);
+                        phaseU1 /= abs(phaseU1);
 
                         // put the mean object phase to coil map
                         conjugate(V1, V1);
@@ -396,6 +401,8 @@ void coil_map_3d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
 template EXPORTMRICORE void coil_map_3d_Inati(const hoNDArray< std::complex<float> >& data, hoNDArray< std::complex<float> >& coilMap, size_t ks, size_t kz, size_t power);
 template EXPORTMRICORE void coil_map_3d_Inati(const hoNDArray< std::complex<double> >& data, hoNDArray< std::complex<double> >& coilMap, size_t ks, size_t kz, size_t power);
 
+template EXPORTMRICORE void coil_map_3d_Inati(const hoNDArray< complext<float> >& data, hoNDArray< complext<float> >& coilMap, size_t ks, size_t kz, size_t power);
+template EXPORTMRICORE void coil_map_3d_Inati(const hoNDArray< complext<double> >& data, hoNDArray< complext<double> >& coilMap, size_t ks, size_t kz, size_t power);
 // ------------------------------------------------------------------------
 
 template<typename T> 
@@ -858,5 +865,33 @@ void coil_combine(const hoNDArray<T>& data, const hoNDArray<T>& coilMap, size_t 
 
 template EXPORTMRICORE void coil_combine(const hoNDArray< std::complex<float> >& data, const hoNDArray< std::complex<float> >& coilMap, size_t cha_dim, hoNDArray< std::complex<float> >& combined);
 template EXPORTMRICORE void coil_combine(const hoNDArray< std::complex<double> >& data, const hoNDArray< std::complex<double> >& coilMap, size_t cha_dim, hoNDArray< std::complex<double> >& combined);
+
+
+namespace {
+    template<class REAL, unsigned int D>
+    struct coil_algorithm_wrapper {};
+
+    template<class REAL> struct coil_algorithm_wrapper<REAL,2> {
+        static hoNDArray<complext<REAL>> estimate_b1_map(const hoNDArray<float_complext>& data){
+            hoNDArray<float_complext> output(data.get_dimensions());
+            coil_map_2d_Inati(data,output);
+            return output;
+        }
+    };
+    template<class REAL> struct coil_algorithm_wrapper<REAL,3> {
+        static hoNDArray<complext<REAL>> estimate_b1_map(const hoNDArray<float_complext>& data){
+            hoNDArray<float_complext> output(data.get_dimensions());
+            coil_map_3d_Inati(data,output);
+            return output;
+        }
+    };
+}
+
+
+template<class REAL, unsigned int D>
+hoNDArray<complext<REAL>> estimate_b1_map(const hoNDArray<float_complext>& data) {
+    return std::move(coil_algorithm_wrapper<REAL,D>::estimate_b1_map(data));
+}
+
 
 }

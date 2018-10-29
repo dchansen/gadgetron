@@ -342,7 +342,7 @@ namespace Gadgetron {
         }
 
         // pad the ref_coil_map into the data array
-        Gadgetron::pad(recon_RO, recon_E1, recon_E2, &ref_recon_buf, &ref_coil_map);
+        Gadgetron::pad(recon_RO, recon_E1, recon_E2, ref_recon_buf, ref_coil_map);
 
         std::vector<size_t> dim = *ref_data.get_dimensions();
         ref_calib.create(dim, ref_data.begin());

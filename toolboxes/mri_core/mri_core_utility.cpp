@@ -226,7 +226,7 @@ namespace Gadgetron
                 hoNDArray<T> kspace(complexIm);
                 Gadgetron::hoNDFFT<typename realType<T>::Type>::instance()->fft3c(complexIm, kspace);
 
-                Gadgetron::pad(sizeRO, sizeE1, sizeE2, &kspace, &complexImResized);
+                Gadgetron::pad(sizeRO, sizeE1, sizeE2, kspace, complexImResized);
 
                 Gadgetron::hoNDFFT<typename realType<T>::Type>::instance()->ifft3c(complexImResized);
 
@@ -253,7 +253,7 @@ namespace Gadgetron
                 hoNDArray<T> kspace(complexIm);
                 Gadgetron::hoNDFFT<typename realType<T>::Type>::instance()->fft2c(complexIm, kspace);
 
-                Gadgetron::pad(sizeRO, sizeE1, &kspace, &complexImResized);
+                Gadgetron::pad(sizeRO, sizeE1, kspace, complexImResized);
                 Gadgetron::hoNDFFT<typename realType<T>::Type>::instance()->ifft2c(complexImResized);
 
                 typename realType<T>::Type scaling = (typename realType<T>::Type)(std::sqrt((double)sizeRO*sizeE1) / std::sqrt((double)RO*E1));

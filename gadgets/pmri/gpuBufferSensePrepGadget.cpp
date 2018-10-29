@@ -8,8 +8,9 @@
 #include "gpuBufferSensePrepGadget.h"
 #include <ismrmrd/xml.h>
 #include "GenericReconJob.h"
-#include "cuNFFTOperator.h"
+#include "NFFTOperator.h"
 #include "cuNFFT.h"
+#include "cuNDArray_math.h"
 #include "vector_td_utilities.h"
 #include <boost/shared_ptr.hpp>
 #include <boost/make_shared.hpp>
@@ -109,8 +110,8 @@ int gpuBufferSensePrepGadget::process(
 		for (auto dim : tmpdim)
 			std::cout << dim << " ";
 		std::cout << std::endl;
-		auto permuted = permute((hoNDArray<float_complext>*)&buffer->data_,&new_order);
-		cuNDArray<float_complext> data(*permuted);
+		auto permuted = permute(*(hoNDArray<float_complext>*)&buffer->data_,new_order);
+		cuNDArray<float_complext> data(permuted);
 		if (dcw){
 			float scale_factor = float(prod(image_dims_recon_os_))/asum(dcw.get());
 			*dcw *= scale_factor;
@@ -133,7 +134,7 @@ int gpuBufferSensePrepGadget::process(
 	IsmrmrdDataBuffered* mainbuffer = &reconbit.data_;
 
 	//Permute as Sensegadgets expect last dimension to be coils. *Sigh*
-	job.dat_host_ =permute((hoNDArray<float_complext>*)&mainbuffer->data_,&new_order);
+	job.dat_host_ = boost::make_shared<hoNDArray<complext<float>>>(permute(*(hoNDArray<float_complext>*)&mainbuffer->data_,new_order));
 
 	if (mainbuffer->trajectory_){
 		auto & trajectory = *mainbuffer->trajectory_;
@@ -224,7 +225,7 @@ boost::shared_ptr<cuNDArray<float_complext> > gpuBufferSensePrepGadget::reconstr
 		GDEBUG("Preprocessing\n\n");
 		plan.preprocess(&flat_traj,NFFT_prep_mode::NC2C);
 		GDEBUG("Computing\n\n");
-		plan.compute(data,result,dcw,NFFT_comp_mode::BACKWARDS_NC2C);
+		plan.compute(data,*result,dcw,NFFT_comp_mode::BACKWARDS_NC2C);
 
 		return boost::shared_ptr<cuNDArray<float_complext>>(result);
 
@@ -232,7 +233,7 @@ boost::shared_ptr<cuNDArray<float_complext> > gpuBufferSensePrepGadget::reconstr
 		std::vector<size_t> csm_dims = image_dims_recon_;
 		csm_dims.push_back(ncoils);
 
-		auto E = boost::make_shared<cuNFFTOperator<float,2>>();
+		auto E = boost::make_shared<NFFTOperator<cuNDArray,float,2>>();
 
 		E->setup(from_std_vector<size_t,2>(image_dims_recon_),image_dims_recon_os_,kernel_width_);
 		std::vector<size_t> flat_dims = {traj->get_number_of_elements()};

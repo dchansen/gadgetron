@@ -118,6 +118,7 @@ namespace Gadgetron {
     REAL
     KaiserBessel(const Gadgetron::vector_td<REAL, 2> &u, const Gadgetron::vector_td<REAL, 2> &matrix_size_os,
                  REAL one_over_W, const vector_td<REAL, 2> &beta) {
+
         REAL phi_x = KaiserBessel(u.vec[0], matrix_size_os.vec[0], one_over_W, beta[0]);
         REAL phi_y = KaiserBessel(u.vec[1], matrix_size_os.vec[1], one_over_W, beta[1]);
         return phi_x * phi_y;

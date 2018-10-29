@@ -12,7 +12,7 @@
 #include "cuNFFT.h"
 #include "b1_map.h"
 #include "vector_td_utilities.h"
-#include "cuNFFTOperator.h"
+#include "../../toolboxes/nfft/NFFTOperator.h"
 #include "cuCgSolver.h"
 #include "cuNDArray_fileio.h"
 #include "trajectory_utils.h"
@@ -160,9 +160,9 @@ boost::shared_ptr<cuNDArray<float_complext> > gpuCSICoilEstimationGadget::calcul
 		cuNDArray<float> spiral_dcw(spiral_traj_dims,dcw->get_data_ptr());
 
 		GDEBUG("Preprocessing\n\n");
-		plan.preprocess(&spiral_traj,NFFT_prep_mode::NC2C);
+		plan.preprocess(spiral_traj,NFFT_prep_mode::NC2C);
 		GDEBUG("Computing\n\n");
-		plan.compute(&second_spiral,&tmp,&spiral_dcw,NFFT_comp_mode::BACKWARDS_NC2C);
+
 		auto tmp_abs = abs(&tmp);
 
 		return estimate_b1_map<float,2>(&tmp);
@@ -170,7 +170,7 @@ boost::shared_ptr<cuNDArray<float_complext> > gpuCSICoilEstimationGadget::calcul
 	} else { //No density compensation, we have to do iterative reconstruction.
 
 
-		auto E = boost::make_shared<cuNFFTOperator<float,2>>();
+		auto E = boost::make_shared<NFFTOperator<cuNDArray,float,2>>();
 
 		E->setup(from_std_vector<size_t,2>(img_size),from_std_vector<size_t,2>(img_size)*size_t(2),kernel_width_);
 

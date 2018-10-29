@@ -2,7 +2,7 @@
 
 #include "cuBuffer.h"
 #include "cuCgSolver.h"
-#include "cuNFFTOperator.h"
+#include "../../../nfft/NFFTOperator.h"
 
 namespace Gadgetron{
 
@@ -16,7 +16,7 @@ namespace Gadgetron{
     typedef typename cuBuffer<REAL,D>::_reald    _reald;
 
     cuSpiritBuffer() : cuBuffer<REAL,D>() {
-      E_ = boost::shared_ptr< cuNFFTOperator<REAL,D> >(new cuNFFTOperator<REAL,D>() );
+      E_ = boost::make_shared< NFFTOperator<cuNDArray,REAL,D> >();
     }
     
     virtual ~cuSpiritBuffer() {}
@@ -35,7 +35,7 @@ namespace Gadgetron{
     
   protected:
     cuCgSolver<_complext> cg_;
-    boost::shared_ptr< cuNFFTOperator<REAL,D> > E_;
+    boost::shared_ptr< NFFTOperator<cuNDArray,REAL,D> > E_;
   };
   
 }

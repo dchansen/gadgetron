@@ -155,7 +155,7 @@ int main( int argc, char** argv)
 
     // Gridder
     timer = new GPUTimer("Computing adjoint nfft (gridding)");
-    plan.compute( data.get(), &tmp_image, dcw.get(), NFFT_comp_mode::BACKWARDS_NC2C );
+    plan.compute(*data, tmp_image, dcw.get(), NFFT_comp_mode::BACKWARDS_NC2C );
     delete timer;
   }
   

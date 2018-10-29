@@ -182,7 +182,7 @@ int main(int argc, char** argv)
   // Define preconditioning operator
   boost::shared_ptr< cuCgPreconditioner<_complext> > D( new cuCgPreconditioner<_complext>() );
   boost::shared_ptr< cuNDArray<_real> > ___precon_weights = sum(abs_square(csm.get()).get(),2);
-  boost::shared_ptr< cuNDArray<_real> > __precon_weights = expand<_real>( ___precon_weights.get(), frames_per_reconstruction );
+      boost::shared_ptr< cuNDArray<_real> > __precon_weights = boost::make_shared<cuNDArray<_real>>(expand<_real>( *___precon_weights, frames_per_reconstruction ));
   ___precon_weights.reset();
 
   // Setup conjugate gradient solver
@@ -236,18 +236,18 @@ int main(int argc, char** argv)
     E->set_codomain_dimensions(data->get_dimensions().get());    
 
     // Convolve to Cartesian k-space
-    E->get_plan()->convolve( data.get(), image_os, dcw.get(), NFFT_conv_mode::NC2C );
+    E->get_plan()->convolve( *data, *image_os, dcw.get(), NFFT_conv_mode::NC2C );
 
     // Apply shutter
-    fill_border<_complext,2>( shutter_radius, image_os );
+    fill_border<_complext,2>( shutter_radius, *image_os );
 
-    E->get_plan()->fft( image_os, NFFT_fft_mode::BACKWARDS );
-    E->get_plan()->deapodize( image_os );
+    E->get_plan()->fft( *image_os, NFFT_fft_mode::BACKWARDS );
+    E->get_plan()->deapodize( *image_os );
 
     // Remove oversampling
     image_dims.push_back(num_coils);
     cuNDArray<_complext> *image = new cuNDArray<_complext>(&image_dims);
-    crop<_complext,2>( (matrix_size_os-matrix_size)>>1, image_os, image );
+    crop<_complext,2>( (matrix_size_os-matrix_size)>>1, *image_os, *image );
     image_dims.pop_back();
 
     // Compute regularization image

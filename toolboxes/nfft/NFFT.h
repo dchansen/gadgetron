@@ -27,6 +27,20 @@ namespace Gadgetron {
         BACKWARDS_NC2C /**< backwards NFFT non-Cartesian to Cartesian. */
     };
 
+/**
+   Enum to specify the preprocessing mode.
+*/
+    enum class NFFT_prep_mode {
+        C2NC, /**< preprocess to perform a Cartesian to non-Cartesian NFFT. */
+        NC2C, /**< preprocess to perform a non-Cartesian to Cartesian NFFT. */
+        ALL /**< preprocess to perform NFFTs in both directions. */
+    };
+
+
+    template<template<class> class ARRAY,class REAL, unsigned int D>
+    struct NFFT {
+
+    };
 
 
 }

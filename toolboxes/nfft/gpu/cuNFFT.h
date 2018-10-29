@@ -32,20 +32,6 @@ enum class ConvolutionType {
 
 };
 
-/**
-   Enum to specify the preprocessing mode.
-*/
-enum class NFFT_prep_mode {
-    C2NC, /**< preprocess to perform a Cartesian to non-Cartesian NFFT. */
-    NC2C, /**< preprocess to perform a non-Cartesian to Cartesian NFFT. */
-    ALL /**< preprocess to perform NFFTs in both directions. */
-};
-
-enum class NFFT_wipe_mode {
-    ALL, /**< delete all internal memory. */
-    PREPROCESSING /**< delete internal memory holding the preprocessing data structures. */
-};
-
 
 
 
@@ -65,17 +51,6 @@ namespace cuNFFT {
     public:
 
 
-        /**
-            Clear internal storage
-            \param mode enum class defining the wipe mode
-        */
-        virtual void wipe(NFFT_wipe_mode mode) = 0;
-
-        /**
-            Setup the plan. Please see the constructor taking similar arguments for a parameter description.
-        */
-        virtual void setup(typename uint64d<D>::Type matrix_size, typename uint64d<D>::Type matrix_size_os,
-                           REAL W, int device = -1) = 0;
 
 
         /**
@@ -83,7 +58,7 @@ namespace cuNFFT {
            \param trajectory the NFFT non-Cartesian trajectory normalized to the range [-1/2;1/2].
            \param mode enum class specifying the preprocessing mode
         */
-        virtual void preprocess(cuNDArray<typename reald<REAL, D>::Type> *trajectory, NFFT_prep_mode mode) = 0;
+        virtual void preprocess(const cuNDArray<typename reald<REAL, D>::Type>& trajectory, NFFT_prep_mode mode = NFFT_prep_mode::ALL) = 0;
 
 
         /**
@@ -94,8 +69,8 @@ namespace cuNFFT {
            If an 0x0-pointer is provided no density compensation is used.
            \param mode enum class specifying the mode of operation.
         */
-        virtual void compute(cuNDArray <complext<REAL>> *in, cuNDArray <complext<REAL>> *out,
-                             cuNDArray <REAL> *dcw, NFFT_comp_mode mode) = 0;
+        virtual void compute(const cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>>&out,
+                             const cuNDArray <REAL> *dcw, NFFT_comp_mode mode) = 0;
 
         /**
            Execute an NFFT iteraion (from Cartesian image space to non-Cartesian Fourier space and back to Cartesian image space).
@@ -105,8 +80,8 @@ namespace cuNFFT {
            If an 0x0-pointer is provided no density compensation is used.
            \param[in] halfway_dims specifies the dimensions of the intermediate Fourier space (codomain).
         */
-        virtual void mult_MH_M(cuNDArray <complext<REAL>> *in, cuNDArray <complext<REAL>> *out,
-                               cuNDArray <REAL> *dcw, std::vector<size_t> halfway_dims) = 0;
+        virtual void mult_MH_M(const cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>>& out,
+                               const cuNDArray <REAL> *dcw, std::vector<size_t> halfway_dims) = 0;
 
     public: // Utilities
 
@@ -119,7 +94,7 @@ namespace cuNFFT {
            \param[in] mode enum class specifying the mode of the convolution
            \param[in] accumulate specifies whether the result is added to the output (accumulation) or if the output is overwritten.
         */
-        virtual void convolve(cuNDArray <complext<REAL>> *in, cuNDArray <complext<REAL>> *out, cuNDArray <REAL> *dcw,
+        virtual void convolve(const cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>>& out, const cuNDArray <REAL> *dcw,
                               NFFT_conv_mode mode, bool accumulate = false) = 0;
 
 
@@ -129,13 +104,13 @@ namespace cuNFFT {
            \param mode enum class specifying the direction of the FFT.
            \param do_scale boolean specifying whether FFT normalization is desired.
         */
-        virtual void fft(cuNDArray <complext<REAL>> *data, NFFT_fft_mode mode, bool do_scale = true) = 0;
+        virtual void fft(cuNDArray <complext<REAL>>& data, NFFT_fft_mode mode, bool do_scale = true) = 0;
 
         /**
            NFFT deapodization.
            \param[in,out] image the image to be deapodized (inplace).
         */
-        virtual void deapodize(cuNDArray <complext<REAL>> *image, bool fourier_domain = false) = 0;
+        virtual void deapodize(cuNDArray <complext<REAL>>& image, bool fourier_domain = false) = 0;
 
 
     public: // Setup queries
@@ -168,19 +143,13 @@ namespace cuNFFT {
             return device;
         }
 
-        /**
-           Query of the plan has been setup
-        */
-        inline bool is_setup() {
-            return initialized;
-        }
+
 
     protected:
 
         typename uint64d<D>::Type matrix_size;          // Matrix size
         typename uint64d<D>::Type matrix_size_os;       // Oversampled matrix size
         int device;
-        bool initialized;
         REAL W;
 
 
@@ -208,11 +177,6 @@ namespace cuNFFT {
     public: // Main interface
 
         /**
-            Default constructor
-        */
-        cuNFFT_impl();
-
-        /**
            Constructor defining the required NFFT parameters.
            \param matrix_size the matrix size to use for the NFFT. Define as a multiple of 32.
            \param matrix_size_os intermediate oversampled matrix size. Define as a multiple of 32.
@@ -232,25 +196,13 @@ namespace cuNFFT {
         */
         virtual ~cuNFFT_impl();
 
-        /**
-            Clear internal storage
-            \param mode enum class defining the wipe mode
-        */
-        virtual void wipe(NFFT_wipe_mode mode) override;
-
-        /**
-            Setup the plan. Please see the constructor taking similar arguments for a parameter description.
-        */
-        virtual void setup(typename uint64d<D>::Type matrix_size, typename uint64d<D>::Type matrix_size_os,
-                           REAL W, int device = -1) override;
-
 
         /**
            Perform NFFT preprocessing for a given trajectory.
            \param trajectory the NFFT non-Cartesian trajectory normalized to the range [-1/2;1/2].
            \param mode enum class specifying the preprocessing mode
         */
-        virtual void preprocess(cuNDArray<typename reald<REAL, D>::Type> *trajectory, NFFT_prep_mode mode) override;
+        virtual void preprocess(const cuNDArray<typename reald<REAL, D>::Type>& trajectory, NFFT_prep_mode mode = NFFT_prep_mode::ALL) override;
 
 
         /**
@@ -261,8 +213,8 @@ namespace cuNFFT {
            If an 0x0-pointer is provided no density compensation is used.
            \param mode enum class specifying the mode of operation.
         */
-        virtual void compute(cuNDArray <complext<REAL>> *in, cuNDArray <complext<REAL>> *out,
-                             cuNDArray <REAL> *dcw, NFFT_comp_mode mode) override;
+        virtual void compute(const cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>>& out,
+                             const cuNDArray <REAL> *dcw, NFFT_comp_mode mode) override;
 
         /**
            Execute an NFFT iteraion (from Cartesian image space to non-Cartesian Fourier space and back to Cartesian image space).
@@ -272,8 +224,8 @@ namespace cuNFFT {
            If an 0x0-pointer is provided no density compensation is used.
            \param[in] halfway_dims specifies the dimensions of the intermediate Fourier space (codomain).
         */
-        virtual void mult_MH_M(cuNDArray <complext<REAL>> *in, cuNDArray <complext<REAL>> *out,
-                               cuNDArray <REAL> *dcw, std::vector<size_t> halfway_dims) override;
+        virtual void mult_MH_M(const cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>>& out,
+                               const cuNDArray <REAL> *dcw, std::vector<size_t> halfway_dims) override;
 
     public: // Utilities
 
@@ -287,7 +239,7 @@ namespace cuNFFT {
            \param[in] mode enum class specifying the mode of the convolution
            \param[in] accumulate specifies whether the result is added to the output (accumulation) or if the output is overwritten.
         */
-        virtual void convolve(cuNDArray <complext<REAL>> *in, cuNDArray <complext<REAL>> *out, cuNDArray <REAL> *dcw,
+        virtual void convolve(const cuNDArray <complext<REAL>> & in, cuNDArray <complext<REAL>> & out, const cuNDArray <REAL> *dcw,
                               NFFT_conv_mode mode, bool accumulate = false) override;
 
 
@@ -297,13 +249,13 @@ namespace cuNFFT {
            \param mode enum class specifying the direction of the FFT.
            \param do_scale boolean specifying whether FFT normalization is desired.
         */
-        virtual void fft(cuNDArray <complext<REAL>> *data, NFFT_fft_mode mode, bool do_scale = true) override;
+        virtual void fft(cuNDArray <complext<REAL>> &data, NFFT_fft_mode mode, bool do_scale = true) override;
 
         /**
            NFFT deapodization.
            \param[in,out] image the image to be deapodized (inplace).
         */
-        virtual void deapodize(cuNDArray <complext<REAL>> *image, bool fourier_domain = false);
+        virtual void deapodize(cuNDArray <complext<REAL>> &image, bool fourier_domain = false);
 
 
         friend class cuNFFT::convolverNC2C<REAL, D, CONV>;
@@ -311,8 +263,8 @@ namespace cuNFFT {
 
     private: // Internal to the implementation
 
-        void check_consistency(cuNDArray <complext<REAL>> *samples, cuNDArray <complext<REAL>> *image,
-                               cuNDArray <REAL> *dcw);
+        void check_consistency(const cuNDArray <complext<REAL>> *samples, const cuNDArray <complext<REAL>> *image,
+                               const cuNDArray <REAL> *dcw);
 
         // Shared barebones constructor
         void barebones();
@@ -326,13 +278,13 @@ namespace cuNFFT {
         compute_deapodization_filter(bool FFTed = false);
 
         // Dedicated computes
-        void compute_NFFT_C2NC(cuNDArray <complext<REAL>> *in, cuNDArray <complext<REAL>> *out);
+        void compute_NFFT_C2NC(cuNDArray <complext<REAL>>&in, cuNDArray <complext<REAL>>& out);
 
-        void compute_NFFT_NC2C(cuNDArray <complext<REAL>> *in, cuNDArray <complext<REAL>> *out);
+        void compute_NFFT_NC2C(const cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>>& out);
 
-        void compute_NFFTH_NC2C(cuNDArray <complext<REAL>> *in, cuNDArray <complext<REAL>> *out);
+        void compute_NFFTH_NC2C(const cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>>& out);
 
-        void compute_NFFTH_C2NC(cuNDArray <complext<REAL>> *in, cuNDArray <complext<REAL>> *out);
+        void compute_NFFTH_C2NC(cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>>& out);
 
 
         // Internal utility
@@ -380,8 +332,6 @@ namespace cuNFFT {
         virtual void atomics_not_supported_for_type_double() = 0;
     };
 
-    template<class REAL, unsigned int D> EXPORTGPUNFFT
-    boost::shared_ptr<cuNFFT_plan<REAL,D>> make_cuNFFT_plan(ConvolutionType conv = ConvolutionType::STANDARD);
 
 
     namespace cuNFFT {
@@ -395,7 +345,7 @@ namespace cuNFFT {
         class convolverNC2C<REAL, D, ConvolutionType::STANDARD> {
         public:
             void
-            convolve_NC2C(cuNFFT_impl<REAL, D, ConvolutionType::STANDARD> *plan, cuNDArray<complext<REAL>> *samples,
+            convolve_NC2C(cuNFFT_impl<REAL, D, ConvolutionType::STANDARD> *plan, const cuNDArray<complext<REAL>> *samples,
                           cuNDArray<complext<REAL>> *image, bool accumulate);
 
             void prepare(cuNFFT_impl<REAL,D,ConvolutionType::STANDARD>* plan, const thrust::device_vector<vector_td<REAL,D>> &trajectory);
@@ -413,7 +363,7 @@ namespace cuNFFT {
         class convolverNC2C<float, D, ConvolutionType::ATOMIC> {
         public:
             void
-            convolve_NC2C(cuNFFT_impl<float, D, ConvolutionType::ATOMIC> *plan, cuNDArray<complext<float>> *samples,
+            convolve_NC2C(cuNFFT_impl<float, D, ConvolutionType::ATOMIC> *plan, const cuNDArray<complext<float>> *samples,
                           cuNDArray<complext<float>> *image, bool accumulate);
 
             void prepare(cuNFFT_impl<float,D,ConvolutionType::ATOMIC>* plan, const thrust::device_vector<vector_td<float,D>> &trajectory){};
@@ -423,7 +373,7 @@ namespace cuNFFT {
         class convolverNC2C<REAL, D, ConvolutionType::SPARSE_MATRIX> {
         public:
             void convolve_NC2C(cuNFFT_impl<REAL, D, ConvolutionType::SPARSE_MATRIX> *plan,
-                               cuNDArray<complext<REAL>> *samples,
+                               const cuNDArray<complext<REAL>> *samples,
                                cuNDArray<complext<REAL>> *image, bool accumulate);
 
             void prepare(cuNFFT_impl<REAL,D,ConvolutionType::SPARSE_MATRIX>* plan, const thrust::device_vector<vector_td<REAL,D>> &trajectory);
@@ -436,9 +386,27 @@ namespace cuNFFT {
         template<class REAL, unsigned int D, ConvolutionType CONV>
         class convolverC2NC {
         public:
-            void convolve_C2NC(cuNFFT_impl<REAL,D,CONV>* plan,cuNDArray<complext<REAL>> * image, cuNDArray<complext<REAL>> *samples, bool accumulate);
+            void convolve_C2NC(cuNFFT_impl<REAL,D,CONV>* plan, const cuNDArray<complext<REAL>> * image, cuNDArray<complext<REAL>> *samples, bool accumulate);
         };
 
 
     }
+
+
+   template<class REAL, unsigned int D> EXPORTGPUNFFT struct NFFT<cuNDArray,REAL,D> {
+
+        using NFFT_plan = cuNFFT_plan<REAL,D>;
+
+       static boost::shared_ptr<cuNFFT_plan<REAL,D>> make_plan(const vector_td<size_t,D>& matrix_size, const vector_td<size_t,D>& matrix_size_os,
+                    REAL W,ConvolutionType conv = ConvolutionType::STANDARD);
+    };
+   template<unsigned int D> EXPORTGPUNFFT struct NFFT<cuNDArray,double,D> {
+
+       using NFFT_plan = cuNFFT_plan<double,D>;
+       static boost::shared_ptr<cuNFFT_plan<double,D>> make_plan(const vector_td<size_t,D>& matrix_size, const vector_td<size_t,D>& matrix_size_os,
+                    double W,ConvolutionType conv = ConvolutionType::STANDARD);
+    };
+
+
+
 }

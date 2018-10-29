@@ -69,7 +69,7 @@ namespace Gadgetron{
             */
 
             void preprocess(
-                const hoNDArray<vector_td<REAL, D>>& k
+                const hoNDArray<vector_td<REAL, D>>& k, NFFT_prep_mode prep_mode = NFFT_prep_mode::ALL
             );
 
 
@@ -203,13 +203,21 @@ namespace Gadgetron{
         vector_td<size_t,D> matrix_size_os;
 
         vector_td<REAL,D> beta;
-        Gadgetron::NFFT::NFFT_Matrix<REAL> convolution_matrix;
-        Gadgetron::NFFT::NFFT_Matrix<REAL> convolution_matrix_T;
+        NFFT_internal::NFFT_Matrix<REAL> convolution_matrix;
+        NFFT_internal::NFFT_Matrix<REAL> convolution_matrix_T;
 
         hoNDArray<ComplexType> deapodization_filter_IFFT;
         hoNDArray<ComplexType> deapodization_filter_FFT;
         boost::shared_ptr<hoNDArray<REAL>> density_compensation_weights;
 
+    };
+
+
+    template<class REAL, unsigned int D> struct NFFT<hoNDArray,REAL,D>{
+
+        using NFFT_plan = hoNFFT_plan<REAL,D>;
+         static boost::shared_ptr<hoNFFT_plan<REAL,D>> make_plan(const vector_td<size_t,D>& matrix_size, const vector_td<size_t,D>& matrix_size_os,
+                    REAL W);
     };
 
 }

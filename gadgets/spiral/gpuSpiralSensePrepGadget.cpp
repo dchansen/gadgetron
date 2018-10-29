@@ -333,7 +333,7 @@ namespace Gadgetron {
         cuNDArray<float_complext> image(image_dims);
         cuNDArray<float_complext> data(buffer);
 
-        nfft_plan_.compute(&data, &image, dcw_buffer_.get(), NFFT_comp_mode::BACKWARDS_NC2C);
+        nfft_plan_->compute(data, image, dcw_buffer_.get(), NFFT_comp_mode::BACKWARDS_NC2C);
 
         // Check if we need to compute a new csm
         if (propagate_csm_from_set_ < 0 || propagate_csm_from_set_ == set || !csm_) {
@@ -446,9 +446,9 @@ namespace Gadgetron {
         cuNDArray<floatd2> traj(host_traj_);
         dcw_buffer_ = boost::make_shared<cuNDArray<float>>(host_weights_);
 
-        nfft_plan_.setup(from_std_vector<size_t, 2>(image_dimensions_recon_), image_dimensions_recon_os_,
+        nfft_plan_ = NFFT<cuNDArray,float,2>::make_plan(from_std_vector<size_t, 2>(image_dimensions_recon_), image_dimensions_recon_os_,
                          kernel_width_);
-        nfft_plan_.preprocess(&traj, NFFT_prep_mode::NC2C);
+        nfft_plan_->preprocess(&traj, NFFT_prep_mode::NC2C);
 
 
 

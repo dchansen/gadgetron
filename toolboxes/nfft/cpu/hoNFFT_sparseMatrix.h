@@ -5,7 +5,7 @@
 #include "vector_td.h"
 
 namespace Gadgetron {
-    namespace NFFT {
+    namespace NFFT_internal {
 
         template<class REAL> struct NFFT_Matrix {
 

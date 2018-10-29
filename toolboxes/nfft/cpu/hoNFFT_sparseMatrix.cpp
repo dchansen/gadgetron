@@ -37,6 +37,7 @@ namespace {
                       std::vector<REAL> &weights, vector_td<REAL, D> &image_point, size_t index, iteration_counter<N>) {
 
         size_t frame_offset = std::accumulate(&matrix_size[0], &matrix_size[N], 1, std::multiplies<size_t>());
+
         for (int i = std::ceil(point[N] - W * 0.5); i <= std::floor(point[N] + W * 0.5); i++) {
             auto wrapped_i = (i + matrix_size[N]) % matrix_size[N];
             size_t index2 = index + frame_offset * wrapped_i;
@@ -69,8 +70,8 @@ namespace {
 
 
 template<class REAL, unsigned int D>
-Gadgetron::NFFT::NFFT_Matrix<REAL>
-Gadgetron::NFFT::make_NFFT_matrix(const Gadgetron::hoNDArray<Gadgetron::vector_td<REAL, D>> trajectories,
+Gadgetron::NFFT_internal::NFFT_Matrix<REAL>
+Gadgetron::NFFT_internal::make_NFFT_matrix(const Gadgetron::hoNDArray<Gadgetron::vector_td<REAL, D>> trajectories,
                                   const Gadgetron::vector_td<size_t, D> &image_dims, REAL W,
                                   const Gadgetron::vector_td<REAL, D> &beta) {
     GadgetronTimer timer("Make NFFT");
@@ -94,8 +95,8 @@ Gadgetron::NFFT::make_NFFT_matrix(const Gadgetron::hoNDArray<Gadgetron::vector_t
 
 
 template<class REAL>
-Gadgetron::NFFT::NFFT_Matrix<REAL>
-Gadgetron::NFFT::transpose(const Gadgetron::NFFT::NFFT_Matrix<REAL> &matrix) {
+Gadgetron::NFFT_internal::NFFT_Matrix<REAL>
+Gadgetron::NFFT_internal::transpose(const Gadgetron::NFFT_internal::NFFT_Matrix<REAL> &matrix) {
     GadgetronTimer timer("Transpose");
 
     auto work_index = boost::irange(size_t(0),matrix.n_cols);
@@ -132,32 +133,32 @@ Gadgetron::NFFT::transpose(const Gadgetron::NFFT::NFFT_Matrix<REAL> &matrix) {
 
 
 
-template Gadgetron::NFFT::NFFT_Matrix<float> Gadgetron::NFFT::make_NFFT_matrix<float,1>(
+template Gadgetron::NFFT_internal::NFFT_Matrix<float> Gadgetron::NFFT_internal::make_NFFT_matrix<float,1>(
         const Gadgetron::hoNDArray<Gadgetron::vector_td<float, 1>> trajectories,
         const Gadgetron::vector_td<size_t, 1> &image_dims, float W, const Gadgetron::vector_td<float, 1> &beta);
 
-template Gadgetron::NFFT::NFFT_Matrix<float> Gadgetron::NFFT::make_NFFT_matrix<float,2>(
+template Gadgetron::NFFT_internal::NFFT_Matrix<float> Gadgetron::NFFT_internal::make_NFFT_matrix<float,2>(
         const Gadgetron::hoNDArray<Gadgetron::vector_td<float, 2>> trajectories,
         const Gadgetron::vector_td<size_t, 2> &image_dims, float W, const Gadgetron::vector_td<float, 2> &beta);
 
-template Gadgetron::NFFT::NFFT_Matrix<float> Gadgetron::NFFT::make_NFFT_matrix<float,3>(
+template Gadgetron::NFFT_internal::NFFT_Matrix<float> Gadgetron::NFFT_internal::make_NFFT_matrix<float,3>(
         const Gadgetron::hoNDArray<Gadgetron::vector_td<float, 3>> trajectories,
         const Gadgetron::vector_td<size_t, 3> &image_dims, float W, const Gadgetron::vector_td<float, 3> &beta);
 
 
-template Gadgetron::NFFT::NFFT_Matrix<double> Gadgetron::NFFT::make_NFFT_matrix<double,1>(
+template Gadgetron::NFFT_internal::NFFT_Matrix<double> Gadgetron::NFFT_internal::make_NFFT_matrix<double,1>(
         const Gadgetron::hoNDArray<Gadgetron::vector_td<double, 1>> trajectories,
         const Gadgetron::vector_td<size_t, 1> &image_dims, double W, const Gadgetron::vector_td<double, 1> &beta);
 
-template Gadgetron::NFFT::NFFT_Matrix<double> Gadgetron::NFFT::make_NFFT_matrix<double,2>(
+template Gadgetron::NFFT_internal::NFFT_Matrix<double> Gadgetron::NFFT_internal::make_NFFT_matrix<double,2>(
         const Gadgetron::hoNDArray<Gadgetron::vector_td<double, 2>> trajectories,
         const Gadgetron::vector_td<size_t, 2> &image_dims, double W, const Gadgetron::vector_td<double, 2> &beta);
 
-template Gadgetron::NFFT::NFFT_Matrix<double> Gadgetron::NFFT::make_NFFT_matrix<double,3>(
+template Gadgetron::NFFT_internal::NFFT_Matrix<double> Gadgetron::NFFT_internal::make_NFFT_matrix<double,3>(
         const Gadgetron::hoNDArray<Gadgetron::vector_td<double, 3>> trajectories,
         const Gadgetron::vector_td<size_t, 3> &image_dims, double W, const Gadgetron::vector_td<double, 3> &beta);
 
-template Gadgetron::NFFT::NFFT_Matrix<float> Gadgetron::NFFT::transpose(
-        const Gadgetron::NFFT::NFFT_Matrix<float> &matrix);
-template Gadgetron::NFFT::NFFT_Matrix<double> Gadgetron::NFFT::transpose(
-        const Gadgetron::NFFT::NFFT_Matrix<double> &matrix);
+template Gadgetron::NFFT_internal::NFFT_Matrix<float> Gadgetron::NFFT_internal::transpose(
+        const Gadgetron::NFFT_internal::NFFT_Matrix<float> &matrix);
+template Gadgetron::NFFT_internal::NFFT_Matrix<double> Gadgetron::NFFT_internal::transpose(
+        const Gadgetron::NFFT_internal::NFFT_Matrix<double> &matrix);

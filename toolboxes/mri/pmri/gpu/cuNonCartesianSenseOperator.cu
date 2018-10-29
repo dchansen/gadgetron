@@ -7,9 +7,8 @@ using namespace Gadgetron;
 template<class REAL,unsigned int D>
 cuNonCartesianSenseOperator<REAL,D>::cuNonCartesianSenseOperator(ConvolutionType conv) : cuSenseOperator<REAL,D>() {
 
-
-      plan_ = make_cuNFFT_plan<REAL,D>(conv);
-      is_preprocessed_ = false;
+    convolutionType = conv;
+    is_preprocessed_ = false;
  }
 
 template<class REAL, unsigned int D> void
@@ -31,11 +30,11 @@ cuNonCartesianSenseOperator<REAL,D>::mult_M( cuNDArray< complext<REAL> >* in, cu
 
   if( accumulate ){
     cuNDArray< complext<REAL> > tmp_out(out->get_dimensions());
-    plan_->compute( &tmp, &tmp_out, dcw_.get(), NFFT_comp_mode::FORWARDS_C2NC );
+    plan_->compute( &tmp, tmp_out, dcw_.get(), NFFT_comp_mode::FORWARDS_C2NC );
     *out += tmp_out;
   }
   else
-    plan_->compute( &tmp, out, dcw_.get(), NFFT_comp_mode::FORWARDS_C2NC );
+    plan_->compute( tmp, *out, dcw_.get(), NFFT_comp_mode::FORWARDS_C2NC );
 }
 
 template<class REAL, unsigned int D> void
@@ -53,7 +52,7 @@ cuNonCartesianSenseOperator<REAL,D>::mult_MH( cuNDArray< complext<REAL> >* in, c
   cuNDArray< complext<REAL> > tmp(&tmp_dimensions);
 
  // Do the NFFT
-  plan_->compute( in, &tmp, dcw_.get(), NFFT_comp_mode::BACKWARDS_NC2C );
+  plan_->compute( *in, tmp, dcw_.get(), NFFT_comp_mode::BACKWARDS_NC2C );
 
   if( !accumulate ){
     clear(out);    
@@ -65,7 +64,7 @@ cuNonCartesianSenseOperator<REAL,D>::mult_MH( cuNDArray< complext<REAL> >* in, c
 template<class REAL, unsigned int D> void
 cuNonCartesianSenseOperator<REAL,D>::setup( _uint64d matrix_size, _uint64d matrix_size_os, REAL W )
 {  
-  plan_->setup( matrix_size, matrix_size_os, W );
+  plan_ = NFFT<cuNDArray,REAL,D>::make_plan( matrix_size, matrix_size_os, W,convolutionType );
 }
 
 template<class REAL, unsigned int D> void

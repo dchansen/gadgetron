@@ -21,10 +21,9 @@ include_directories(
 
 cuda_add_library(gadgetron_toolbox_gpunfft SHARED 
     cuNFFT.h
-    cuNFFTOperator.h
     gpunfft_export.h
-    cuNFFT.cu 
-    cuNFFTOperator.cu
+    cuNFFT.cu
+        cuNFFTOperator.cpp
   )
 
 set_target_properties(gadgetron_toolbox_gpunfft PROPERTIES VERSION ${GADGETRON_VERSION_STRING} SOVERSION ${GADGETRON_SOVERSION})
@@ -42,7 +41,7 @@ target_link_libraries(gadgetron_toolbox_gpunfft
 install(TARGETS gadgetron_toolbox_gpunfft DESTINATION lib COMPONENT main)
 
 install(FILES 
-  cuNFFT.h 
-  cuNFFTOperator.h 
+  cuNFFT.h
+        ../NFFTOperator.h
   gpunfft_export.h 
   DESTINATION ${GADGETRON_INSTALL_INCLUDE_PATH} COMPONENT main)
