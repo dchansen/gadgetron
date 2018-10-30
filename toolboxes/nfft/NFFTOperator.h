@@ -21,7 +21,7 @@ namespace Gadgetron{
     inline boost::shared_ptr<NFFT_plan> get_plan() { return plan_; }
   
     virtual void setup( typename uint64d<D>::Type matrix_size, typename uint64d<D>::Type matrix_size_os, REAL W );
-    virtual void preprocess( ARRAY<typename reald<REAL,D>::Type> *trajectory );
+    virtual void preprocess(const ARRAY<typename reald<REAL,D>::Type>& trajectory );
 
     virtual void mult_M( ARRAY< complext<REAL> > *in, ARRAY< complext<REAL> > *out, bool accumulate = false );
     virtual void mult_MH( ARRAY< complext<REAL> > *in, ARRAY< complext<REAL> > *out, bool accumulate = false );

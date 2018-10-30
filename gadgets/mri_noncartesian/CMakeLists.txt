@@ -90,7 +90,7 @@ endif()
 
 install(FILES 
     gadgetron_mri_noncartesian_export.h
-    ${gadgetron_mricore_header_files}
+    ${gadgetron_mri_noncartesian_header_files}
     DESTINATION ${GADGETRON_INSTALL_INCLUDE_PATH} COMPONENT main)
 
 install(TARGETS gadgetron_mri_noncartesian DESTINATION lib COMPONENT main)

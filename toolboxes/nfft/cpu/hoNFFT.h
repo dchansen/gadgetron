@@ -33,7 +33,7 @@ namespace Gadgetron{
     */
 
     template<class REAL, unsigned int D>
-    class EXPORTCPUNFFT hoNFFT_plan
+    class EXPORTCPUNFFT hoNFFT_plan : public NFFT_plan<hoNDArray,REAL,D>
     {
         using ComplexType = std::complex<REAL>;
 
@@ -68,9 +68,9 @@ namespace Gadgetron{
                 \param mode: enum specifying the preprocessing mode
             */
 
-            void preprocess(
+            virtual void preprocess(
                 const hoNDArray<vector_td<REAL, D>>& k, NFFT_prep_mode prep_mode = NFFT_prep_mode::ALL
-            );
+            ) override;
 
 
 
@@ -91,12 +91,12 @@ namespace Gadgetron{
                 NFFT_comp_mode mode
             );
 
-            void compute(
+            virtual void compute(
                 const hoNDArray<complext<REAL>> &d,
                 hoNDArray<complext<REAL>> &m,
                 const hoNDArray<REAL>* dcw,
                 NFFT_comp_mode mode
-            );
+            ) override;
 
             /**
                 To be used by an operator for iterative reconstruction 
@@ -107,14 +107,16 @@ namespace Gadgetron{
                 Note: dimensions of in and out should be the same
             */
             void mult_MH_M(
-                hoNDArray<ComplexType> &in,
-                hoNDArray<ComplexType> &out
+                const hoNDArray<ComplexType> &in,
+                hoNDArray<ComplexType> &out,
+                const hoNDArray<REAL>* dcw
             );
 
-            void mult_MH_M(
-                hoNDArray<complext<REAL>> &in,
-                hoNDArray<complext<REAL>> &out
-            );
+            virtual void mult_MH_M(
+                const hoNDArray<complext<REAL>> &in,
+                hoNDArray<complext<REAL>> &out,
+                const hoNDArray<REAL>* dcw
+            ) override;
 
         /**
             Utilities
@@ -134,10 +136,16 @@ namespace Gadgetron{
             void convolve(
                 const hoNDArray<ComplexType> &d,
                 hoNDArray<ComplexType> &m,
-                NFFT_conv_mode mode
+                NFFT_conv_mode mode,
+                bool accumulate = false
             );
 
-
+            virtual void convolve(
+                const hoNDArray<complext<REAL>> &d,
+                hoNDArray<complext<REAL>> &m,
+                NFFT_conv_mode mode,
+                bool accumulate = false
+            ) override;
             /**
                 Cartesian fft. Making use of the hoNDFFT class.
 
@@ -147,8 +155,15 @@ namespace Gadgetron{
 
             void fft(
                 hoNDArray<ComplexType> &d,
-                NFFT_fft_mode mode
+                NFFT_fft_mode mode,
+                bool do_scale=true
             );
+
+            virtual void fft(
+                hoNDArray<complext<REAL>> &d,
+                NFFT_fft_mode mode,
+                bool do_scale=true
+            ) override;
 
             /**
                 NFFT deapodization
@@ -162,6 +177,10 @@ namespace Gadgetron{
                 bool fourierDomain = false
             );
 
+            virtual void deapodize(
+                hoNDArray<complext<REAL>> &d,
+                bool fourierDomain = false
+            ) override;
         /**
             Private implementation methods
         */
@@ -180,12 +199,12 @@ namespace Gadgetron{
 
             void convolve_NFFT_C2NC(
                 const hoNDArray<ComplexType> &d,
-                hoNDArray<ComplexType> &m
+                hoNDArray<ComplexType> &m, bool accumulate
             );
 
             void convolve_NFFT_NC2C(
                 const hoNDArray<ComplexType> &d,
-                hoNDArray<ComplexType> &m
+                hoNDArray<ComplexType> &m, bool accumulate
             );
 
 
@@ -208,7 +227,6 @@ namespace Gadgetron{
 
         hoNDArray<ComplexType> deapodization_filter_IFFT;
         hoNDArray<ComplexType> deapodization_filter_FFT;
-        boost::shared_ptr<hoNDArray<REAL>> density_compensation_weights;
 
     };
 

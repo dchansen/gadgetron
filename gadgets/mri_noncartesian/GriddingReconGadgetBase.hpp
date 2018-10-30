@@ -4,17 +4,17 @@
 #include "vector_td_utilities.h"
 #include <boost/shared_ptr.hpp>
 #include <boost/make_shared.hpp>
-#include "b1_map.h"
-#include "cuCgSolver.h"
+#include "cgSolver.h"
 #include "hoNDArray_math.h"
 #include "hoNDArray_utils.h"
-#include "cudaDeviceManager.h"
 #include <numeric>
 #include <random>
 #include "NonCartesianTools.h"
 #include "NFFTOperator.h"
 namespace Gadgetron {
 
+template<template<class> class ARRAY> 	GriddingReconGadgetBase<ARRAY>::GriddingReconGadgetBase() : Gadget1() {}
+template<template<class> class ARRAY> 	GriddingReconGadgetBase<ARRAY>::~GriddingReconGadgetBase() {}
 template<template<class> class ARRAY> 	int GriddingReconGadgetBase<ARRAY>::process_config(ACE_Message_Block* mb)
 	{
 		// -------------------------------------------------
@@ -34,7 +34,7 @@ template<template<class> class ARRAY> 	int GriddingReconGadgetBase<ARRAY>::proce
 		image_dims_.push_back(matrixsize.y);
 		
 		//Figure out what the oversampled matrix size should be taking the warp size into consideration. 
-		unsigned int warp_size = cudaDeviceManager::Instance()->warp_size();
+		unsigned int warp_size = 32;
 		image_dims_os_ = uint64d2
 			(((static_cast<size_t>(std::ceil(image_dims_[0]*oversampling_factor_))+warp_size-1)/warp_size)*warp_size,
 			 ((static_cast<size_t>(std::ceil(image_dims_[1]*oversampling_factor_))+warp_size-1)/warp_size)*warp_size);
@@ -189,9 +189,9 @@ template<template<class> class ARRAY> 	boost::shared_ptr<ARRAY<float_complext> >
 			solver.set_max_iterations(iteration_max.value());
 			solver.set_encoding_operator(E);
 			solver.set_tc_tolerance(iteration_tol.value());
-			solver.set_output_mode(cuCgSolver<float_complext>::OUTPUT_SILENT);
+			solver.set_output_mode(decltype(solver)::OUTPUT_SILENT);
 			E->set_codomain_dimensions(data->get_dimensions().get());
-			E->preprocess(&flat_traj);
+			E->preprocess(flat_traj);
 			auto res = solver.solve(data);
 			return res;
 		}

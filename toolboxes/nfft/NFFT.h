@@ -1,6 +1,10 @@
 #pragma once
- /**
-   Enum specifying the direction of the NFFT standalone FFT.
+
+#include "complext.h"
+#include "vector_td.h"
+#include <vector>
+/**
+  Enum specifying the direction of the NFFT standalone FFT.
 */
 namespace Gadgetron {
     enum class NFFT_fft_mode {
@@ -37,8 +41,116 @@ namespace Gadgetron {
     };
 
 
-    template<template<class> class ARRAY,class REAL, unsigned int D>
+    template<template<class> class ARRAY, class REAL, unsigned int D>
     struct NFFT {
+
+    };
+
+
+    template<template<class> class ARRAY, class REAL, unsigned int D>
+    class NFFT_plan {
+    public:
+
+        /**
+           Perform NFFT preprocessing for a given trajectory.
+           \param trajectory the NFFT non-Cartesian trajectory normalized to the range [-1/2;1/2].
+           \param mode enum class specifying the preprocessing mode
+        */
+        virtual void preprocess(const ARRAY<typename reald<REAL, D>::Type> &trajectory,
+                                NFFT_prep_mode mode = NFFT_prep_mode::ALL) = 0;
+
+
+        /**
+           Execute the NFFT.
+           \param[in] in the input array.
+           \param[out] out the output array.
+           \param mode enum class specifying the mode of operation.
+        */
+        virtual void compute(const ARRAY<complext<REAL>>& in, ARRAY<complext < REAL>>&out,
+        const ARRAY<REAL> *dcw, NFFT_comp_mode
+        mode) = 0;
+
+        /**
+           Execute an NFFT iteraion (from Cartesian image space to non-Cartesian Fourier space and back to Cartesian image space).
+           \param[in] in the input array.
+           \param[out] out the output array.
+           \param[in] dcw optional density compensation weights weighing the input samples according to the sampling density.
+           If an 0x0-pointer is provided no density compensation is used.
+           \param[in] halfway_dims specifies the dimensions of the intermediate Fourier space (codomain).
+        */
+        virtual void mult_MH_M(const ARRAY<complext<REAL>>& in, ARRAY<complext < REAL>>& out,
+        const ARRAY<REAL> *dcw
+        ) = 0;
+
+    public: // Utilities
+
+
+        /**
+           Perform "standalone" convolution
+           \param[in] in the input array.
+           \param[out] out the output array.
+           \param[in] dcw optional density compensation weights.
+           \param[in] mode enum class specifying the mode of the convolution
+           \param[in] accumulate specifies whether the result is added to the output (accumulation) or if the output is overwritten.
+        */
+        virtual void convolve(const ARRAY<complext<REAL>>& in, ARRAY<complext < REAL>>& out,
+        NFFT_conv_mode   mode,
+        bool accumulate = false
+        ) = 0;
+
+
+        /**
+           Cartesian FFT. For completeness, just invokes the cuNDFFT class.
+           \param[in,out] data the data for the inplace FFT.
+           \param mode enum class specifying the direction of the FFT.
+           \param do_scale boolean specifying whether FFT normalization is desired.
+        */
+        virtual void fft(ARRAY<complext < REAL>>& data,
+        NFFT_fft_mode mode,
+        bool do_scale = true
+        ) = 0;
+
+        /**
+           NFFT deapodization.
+           \param[in,out] image the image to be deapodized (inplace).
+        */
+        virtual void deapodize(ARRAY<complext < REAL>>
+
+        & image,
+        bool fourier_domain = false
+        ) = 0;
+
+
+    public: // Setup queries
+
+        /**
+           Get the matrix size.
+        */
+        inline typename uint64d<D>::Type get_matrix_size() {
+            return matrix_size;
+        }
+
+        /**
+           Get the oversampled matrix size.
+        */
+        inline typename uint64d<D>::Type get_matrix_size_os() {
+            return matrix_size_os;
+        }
+
+        /**
+           Get the convolution kernel size
+        */
+        inline REAL get_W() {
+            return W;
+        }
+
+
+    protected:
+
+        typename uint64d<D>::Type matrix_size;          // Matrix size
+        typename uint64d<D>::Type matrix_size_os;       // Oversampled matrix size
+        REAL W;
+
 
     };
 

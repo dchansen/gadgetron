@@ -75,7 +75,7 @@ NFFTOperator<ARRAY, REAL, D>::mult_MH_M(ARRAY <complext<REAL>> *in, ARRAY <compl
         tmp_out = out;
     }
 
-    plan_->mult_MH_M(*in, *tmp_out, dcw_.get(), *codomain_dims);
+    plan_->mult_MH_M(*in, *tmp_out, dcw_.get());
 
     if (accumulate) {
         *out += *tmp_out;
@@ -93,11 +93,7 @@ NFFTOperator<ARRAY, REAL, D>::setup(typename uint64d<D>::Type matrix_size, typen
 
 template<template<class> class ARRAY, class REAL, unsigned int D>
 void
-NFFTOperator<ARRAY, REAL, D>::preprocess(ARRAY<typename reald<REAL, D>::Type> *trajectory) {
-    if (trajectory == 0x0) {
-        throw std::runtime_error("NFFTOperator::preprocess : 0x0 trajectory provided.");
-    }
-
+NFFTOperator<ARRAY, REAL, D>::preprocess(const ARRAY<typename reald<REAL, D>::Type>& trajectory) {
     plan_->preprocess(trajectory, NFFT_prep_mode::ALL);
 }
 

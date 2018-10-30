@@ -10,7 +10,8 @@ namespace Gadgetron {
 	{
 	public:
 //		GADGET_DECLARE(GriddingReconGadgetBase);
-
+		GriddingReconGadgetBase();
+		~GriddingReconGadgetBase();
 
 
 		GADGET_PROPERTY(kernel_width,float,"Kernel width for NFFT", 5.5);

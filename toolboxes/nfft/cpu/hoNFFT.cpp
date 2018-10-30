@@ -41,12 +41,13 @@ namespace Gadgetron {
         struct FFT<T, 1> {
             using REAL = typename realType<T>::Type;
 
-            static void fft(hoNDArray<T> &array, NFFT_fft_mode mode) {
+            static void fft(hoNDArray<T> &array, NFFT_fft_mode mode, bool do_scale) {
                 if (mode == NFFT_fft_mode::FORWARDS) {
                     hoNDFFT<REAL>::instance()->fft1c(array);
                 } else {
                     hoNDFFT<REAL>::instance()->ifft1c(array);
                 }
+                if (do_scale) array /= std::sqrt(REAL(array.get_size(0)));
             }
         };
 
@@ -54,12 +55,15 @@ namespace Gadgetron {
         struct FFT<T, 2> {
             using REAL = typename realType<T>::Type;
 
-            static void fft(hoNDArray<T> &array, NFFT_fft_mode mode) {
+            static void fft(hoNDArray<T> &array, NFFT_fft_mode mode, bool do_scale ) {
                 if (mode == NFFT_fft_mode::FORWARDS) {
                     hoNDFFT<REAL>::instance()->fft2c(array);
                 } else {
                     hoNDFFT<REAL>::instance()->ifft2c(array);
                 }
+
+                if (do_scale) array /= std::sqrt(REAL(array.get_size(0)*array.get_size(1)));
+
             }
         };
 
@@ -67,12 +71,14 @@ namespace Gadgetron {
         struct FFT<T, 3> {
             using REAL = typename realType<T>::Type;
 
-            static void fft(hoNDArray<T> &array, NFFT_fft_mode mode) {
+            static void fft(hoNDArray<T> &array, NFFT_fft_mode mode, bool do_scale) {
                 if (mode == NFFT_fft_mode::FORWARDS) {
                     hoNDFFT<REAL>::instance()->fft3c(array);
                 } else {
                     hoNDFFT<REAL>::instance()->ifft3c(array);
                 }
+
+                if (do_scale) array /= std::sqrt(REAL(array.get_size(0)*array.get_size(1)*array.get_size(2)));
             }
         };
 
@@ -153,8 +159,8 @@ namespace Gadgetron {
         this->beta = compute_beta(W,matrix_size,matrix_size_os);
         this->deapodization_filter_IFFT = compute_deapodization_filter(this->matrix_size_os,this->beta, this->W);
         this->deapodization_filter_FFT = deapodization_filter_IFFT;
-        FFT<std::complex<REAL>,D>::fft(deapodization_filter_IFFT,NFFT_fft_mode::BACKWARDS);
-        FFT<std::complex<REAL>,D>::fft(deapodization_filter_FFT,NFFT_fft_mode::FORWARDS);
+        FFT<std::complex<REAL>,D>::fft(deapodization_filter_IFFT,NFFT_fft_mode::BACKWARDS,true);
+        FFT<std::complex<REAL>,D>::fft(deapodization_filter_FFT,NFFT_fft_mode::FORWARDS,true);
 
         boost::transform(deapodization_filter_IFFT,deapodization_filter_IFFT.begin(),[](auto val){return REAL(1)/val;});
         boost::transform(deapodization_filter_FFT,deapodization_filter_FFT.begin(),[](auto val){return REAL(1)/val;});
@@ -171,8 +177,8 @@ namespace Gadgetron {
          this->deapodization_filter_IFFT = compute_deapodization_filter(this->matrix_size_os,this->beta, this->W);
         this->deapodization_filter_FFT = deapodization_filter_IFFT;
 
-        FFT<std::complex<REAL>,D>::fft(deapodization_filter_IFFT,NFFT_fft_mode::BACKWARDS);
-        FFT<std::complex<REAL>,D>::fft(deapodization_filter_FFT,NFFT_fft_mode::FORWARDS);
+        FFT<std::complex<REAL>,D>::fft(deapodization_filter_IFFT,NFFT_fft_mode::BACKWARDS,false);
+        FFT<std::complex<REAL>,D>::fft(deapodization_filter_FFT,NFFT_fft_mode::FORWARDS,false);
 //        write_nd_array(abs(&deapodization_filter_IFFT).get(),"deapodization.real");
 
 //        write_nd_array(abs(&deapodization_filter_IFFT).get(),"deapodization.real");
@@ -271,44 +277,70 @@ namespace Gadgetron {
 
     template<class REAL, unsigned int D>
     void hoNFFT_plan<REAL, D>::mult_MH_M(
-            hoNDArray<complext<REAL>> &in,
-            hoNDArray<complext<REAL>> &out
+            const hoNDArray<complext<REAL>> &in,
+            hoNDArray<complext<REAL>> &out,
+            const hoNDArray<REAL>* dcw
     ) {
-        hoNDArray<ComplexType> *pin = reinterpret_cast<hoNDArray<ComplexType> *>(&in);
+        const hoNDArray<ComplexType> *pin = reinterpret_cast<const hoNDArray<ComplexType> *>(&in);
         hoNDArray<ComplexType> *pout = reinterpret_cast<hoNDArray<ComplexType> *>(&out);
 
-        this->mult_MH_M(*pin, *pout);
+        this->mult_MH_M(*pin, *pout, dcw);
     }
 
     template<class REAL, unsigned int D>
     void hoNFFT_plan<REAL, D>::mult_MH_M(
-            hoNDArray<ComplexType> &in,
-            hoNDArray<ComplexType> &out
+            const hoNDArray<ComplexType> &in,
+            hoNDArray<ComplexType> &out,
+            const hoNDArray<REAL>* dcw
     ) {
         hoNDArray<ComplexType> tmp(to_std_vector(matrix_size_os));
-        compute(in, tmp, density_compensation_weights.get(), NFFT_comp_mode::BACKWARDS_NC2C);
-        compute(tmp, out,density_compensation_weights.get(), NFFT_comp_mode::FORWARDS_C2NC);
+        compute(in, tmp, dcw, NFFT_comp_mode::BACKWARDS_NC2C);
+        compute(tmp, out,dcw, NFFT_comp_mode::FORWARDS_C2NC);
     }
 
     template<class REAL, unsigned int D>
     void hoNFFT_plan<REAL, D>::convolve(
             const hoNDArray<ComplexType> &d,
             hoNDArray<ComplexType> &m,
-            NFFT_conv_mode mode
+            NFFT_conv_mode mode,
+            bool accumulate
     ) {
         if (mode == NFFT_conv_mode::NC2C)
-            convolve_NFFT_NC2C(d, m);
+            convolve_NFFT_NC2C(d, m,accumulate);
         else
-            convolve_NFFT_C2NC(d, m);
+            convolve_NFFT_C2NC(d, m, accumulate);
+    }
+        template<class REAL, unsigned int D>
+    void hoNFFT_plan<REAL, D>::convolve(
+            const hoNDArray<complext<REAL>> &in,
+            hoNDArray<complext<REAL>> &out,
+            NFFT_conv_mode mode,
+            bool accumulate
+    ) {
+
+        const hoNDArray<ComplexType> *pin = reinterpret_cast<const hoNDArray<ComplexType> *>(&in);
+        hoNDArray<ComplexType> *pout = reinterpret_cast<hoNDArray<ComplexType> *>(&out);
+        this->convolve(*pin,*pout,mode,accumulate);
+
     }
 
     template<class REAL, unsigned int D>
     void hoNFFT_plan<REAL, D>::fft(
             hoNDArray<ComplexType> &d,
-            NFFT_fft_mode mode
+            NFFT_fft_mode mode,
+            bool do_scale
     ) {
         GadgetronTimer timer("FFT");
-        FFT<std::complex<REAL>, D>::fft(d, mode);
+        FFT<std::complex<REAL>, D>::fft(d, mode,do_scale);
+    }
+    template<class REAL, unsigned int D>
+    void hoNFFT_plan<REAL, D>::fft(
+            hoNDArray<complext<REAL>> &d,
+            NFFT_fft_mode mode,
+            bool do_scale
+    ) {
+        hoNDArray<ComplexType> *pd = reinterpret_cast<hoNDArray<ComplexType> *>(&d);
+        this->fft(*pd,mode,do_scale);
     }
 
     template<class REAL, unsigned int D>
@@ -321,6 +353,14 @@ namespace Gadgetron {
         } else {
             d *= deapodization_filter_IFFT;
         }
+    }
+        template<class REAL, unsigned int D>
+    void hoNFFT_plan<REAL, D>::deapodize(
+            hoNDArray<complext<REAL>> &d,
+            bool fourierDomain
+    ) {
+        hoNDArray<ComplexType> *pd = reinterpret_cast<hoNDArray<ComplexType> *>(&d);
+        this->deapodize(*pd,fourierDomain);
     }
 
 
@@ -343,13 +383,15 @@ namespace Gadgetron {
     template<class REAL, unsigned int D>
     void hoNFFT_plan<REAL, D>::convolve_NFFT_C2NC(
             const hoNDArray<ComplexType> &cartesian,
-            hoNDArray<ComplexType> &non_cartesian
+            hoNDArray<ComplexType> &non_cartesian, bool accumulate
     ) {
 
         size_t nbatches = cartesian.get_number_of_elements()/convolution_matrix.n_rows;
         assert(nbatches == non_cartesian.get_number_of_elements()/convolution_matrix.n_cols);
 
-        clear(&non_cartesian);
+        if (!accumulate) clear(&non_cartesian);
+
+#pragma omp parallel for
         for (size_t b = 0; b < nbatches; b++) {
 
             const ComplexType* cartesian_view = cartesian.get_data_ptr()+b*convolution_matrix.n_rows;
@@ -363,12 +405,12 @@ namespace Gadgetron {
     template<class REAL, unsigned int D>
     void hoNFFT_plan<REAL, D>::convolve_NFFT_NC2C(
             const hoNDArray<ComplexType> &non_cartesian,
-            hoNDArray<ComplexType> &cartesian
+            hoNDArray<ComplexType> &cartesian, bool accumulate
     ) {
                 size_t nbatches = cartesian.get_number_of_elements()/convolution_matrix.n_rows;
         assert(nbatches == non_cartesian.get_number_of_elements()/convolution_matrix.n_cols);
         GadgetronTimer timer("Convolution");
-        clear(&cartesian);
+        if (!accumulate) clear(&cartesian);
 #pragma omp parallel for
         for (size_t b = 0; b < nbatches; b++) {
 
@@ -400,6 +442,12 @@ namespace Gadgetron {
         return beta;
     }
 
+    template<class REAL, unsigned int D>
+    boost::shared_ptr<hoNFFT_plan<REAL,D>> NFFT<hoNDArray,REAL,D>::make_plan(const Gadgetron::vector_td<size_t, D> &matrix_size,
+                                        const Gadgetron::vector_td<size_t, D> &matrix_size_os, REAL W) {
+        return boost::make_shared<hoNFFT_plan<REAL,D>>(matrix_size,matrix_size_os,W);
+    }
+
 
 
 }
@@ -421,3 +469,13 @@ class EXPORTCPUNFFT Gadgetron::hoNFFT_plan<double, 2>;
 
 template
 class EXPORTCPUNFFT Gadgetron::hoNFFT_plan<double, 3>;
+
+template class EXPORTCPUNFFT Gadgetron::NFFT<Gadgetron::hoNDArray,float,1>;
+template class EXPORTCPUNFFT Gadgetron::NFFT<Gadgetron::hoNDArray,float,2>;
+template class EXPORTCPUNFFT Gadgetron::NFFT<Gadgetron::hoNDArray,float,3>;
+
+
+
+template class EXPORTCPUNFFT Gadgetron::NFFT<Gadgetron::hoNDArray,double,1>;
+template class EXPORTCPUNFFT Gadgetron::NFFT<Gadgetron::hoNDArray,double,2>;
+template class EXPORTCPUNFFT Gadgetron::NFFT<Gadgetron::hoNDArray,double,3>;

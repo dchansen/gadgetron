@@ -5,10 +5,11 @@
 #include "GriddingReconGadget.h"
 #include "cuNFFT.h"
 #include "cuNDArray_converter.h"
+    #include "b1_map.h"
 #include "GriddingReconGadgetBase.hpp"
 
 namespace Gadgetron {
-    GriddingReconGadget::GriddingReconGadget() {
+    GriddingReconGadget::GriddingReconGadget() : GriddingReconGadgetBase() {
 
     }
 

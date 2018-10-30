@@ -36,13 +36,12 @@ cuNDFFT<T>::fft_int( cuNDArray< complext<T> > *input, std::vector<size_t> *dims_
 {
 	std::vector<size_t> new_dim_order;
 	std::vector<size_t> reverse_dim_order;
-	std::vector<size_t> dims;
 	std::vector<size_t> dim_count(input->get_number_of_dimensions(),0);
 
 	size_t array_ndim = input->get_number_of_dimensions();
 	boost::shared_ptr< std::vector<size_t> > array_dims = input->get_dimensions();
 
-	dims = std::vector<size_t>(dims_to_transform->size(),0);
+	std::vector<size_t> dims = std::vector<size_t>(dims_to_transform->size(),0);
 	for (size_t i = 0; i < dims_to_transform->size(); i++) {
 		if ((*dims_to_transform)[i] >= array_ndim) {
 			std::stringstream ss;
