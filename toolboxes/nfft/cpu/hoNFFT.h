@@ -73,24 +73,12 @@ namespace Gadgetron{
             ) override;
 
 
-
-            /**
-                Execute the NFFT
-
-                \param d: the input data array
-                \param m: the output matrix
-                \param w: optional density compensation if not iterative
-                    provide a 0x0 if non density compensation
-                \param mode: enum specifyiing the mode of operation
-            */
-
             void compute(
-                const hoNDArray<ComplexType> &d,
-                hoNDArray<ComplexType> &m,
+                const hoNDArray<ComplexType > &d,
+                hoNDArray<ComplexType > &m,
                 const hoNDArray<REAL>* dcw,
                 NFFT_comp_mode mode
             );
-
             virtual void compute(
                 const hoNDArray<complext<REAL>> &d,
                 hoNDArray<complext<REAL>> &m,
@@ -181,13 +169,12 @@ namespace Gadgetron{
                 hoNDArray<complext<REAL>> &d,
                 bool fourierDomain = false
             ) override;
+
         /**
             Private implementation methods
         */
 
         private:
-
-
 
             /**
                 Dedicated convolutions
@@ -216,10 +203,6 @@ namespace Gadgetron{
         */
 
         private:
-
-        REAL W;
-        vector_td<size_t,D> matrix_size;
-        vector_td<size_t,D> matrix_size_os;
 
         vector_td<REAL,D> beta;
         NFFT_internal::NFFT_Matrix<REAL> convolution_matrix;

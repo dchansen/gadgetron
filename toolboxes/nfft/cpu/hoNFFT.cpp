@@ -26,6 +26,8 @@
 #include <cpu/hoNDArray_fileio.h>
 #include "GadgetronTimer.h"
 
+#include "NFFT.hpp"
+
 using namespace std;
 
 namespace Gadgetron {
@@ -144,17 +146,7 @@ namespace Gadgetron {
             const vector_td<size_t, D> &matrix_size,
             const vector_td<size_t, D> &matrix_size_os,
             REAL W
-    ) {
-
-        if (W < REAL(1.0))
-            throw std::runtime_error("Kernel width must be larger than 1");
-        if (matrix_size > matrix_size_os)
-            throw std::runtime_error("Oversampled matrix size must be as least as great as the matrix size");
-
-
-        this->W = W;
-        this->matrix_size = matrix_size;
-        this->matrix_size_os = matrix_size_os;
+    ) : NFFT_plan<hoNDArray,REAL,D>(matrix_size,matrix_size_os,W) {
 
         this->beta = compute_beta(W,matrix_size,matrix_size_os);
         this->deapodization_filter_IFFT = compute_deapodization_filter(this->matrix_size_os,this->beta, this->W);
@@ -167,23 +159,21 @@ namespace Gadgetron {
     }
 
     template<class REAL, unsigned int D>
-    hoNFFT_plan<REAL, D>::hoNFFT_plan(const vector_td<size_t, D> &matrix_size, REAL oversampling_factor, REAL W) {
+    hoNFFT_plan<REAL, D>::hoNFFT_plan(const vector_td<size_t, D> &matrix_size, REAL oversampling_factor, REAL W)
+            : NFFT_plan<hoNDArray, REAL, D>(matrix_size, oversampling_factor, W) {
 
-        this->matrix_size = matrix_size;
-        this->W = W;
-        this->matrix_size_os = vector_td<size_t,D>(vector_td<REAL,D>(matrix_size)*oversampling_factor);
 
-        this->beta = compute_beta(W,matrix_size,matrix_size_os);
-         this->deapodization_filter_IFFT = compute_deapodization_filter(this->matrix_size_os,this->beta, this->W);
+        this->beta = compute_beta(W, matrix_size, this->matrix_size_os);
+        this->deapodization_filter_IFFT = compute_deapodization_filter(this->matrix_size_os, this->beta, this->W);
         this->deapodization_filter_FFT = deapodization_filter_IFFT;
 
-        FFT<std::complex<REAL>,D>::fft(deapodization_filter_IFFT,NFFT_fft_mode::BACKWARDS,false);
-        FFT<std::complex<REAL>,D>::fft(deapodization_filter_FFT,NFFT_fft_mode::FORWARDS,false);
-//        write_nd_array(abs(&deapodization_filter_IFFT).get(),"deapodization.real");
-
-//        write_nd_array(abs(&deapodization_filter_IFFT).get(),"deapodization.real");
-        boost::transform(deapodization_filter_IFFT,deapodization_filter_IFFT.begin(),[](auto val){return REAL(1)/val;});
-        boost::transform(deapodization_filter_FFT,deapodization_filter_FFT.begin(),[](auto val){return REAL(1)/val;});
+        FFT<std::complex<REAL>, D>::fft(deapodization_filter_IFFT, NFFT_fft_mode::BACKWARDS, false);
+        FFT<std::complex<REAL>, D>::fft(deapodization_filter_FFT, NFFT_fft_mode::FORWARDS, false);
+        
+        boost::transform(deapodization_filter_IFFT, deapodization_filter_IFFT.begin(),
+                         [](auto val) { return REAL(1) / val; });
+        boost::transform(deapodization_filter_FFT, deapodization_filter_FFT.begin(),
+                         [](auto val) { return REAL(1) / val; });
     }
 
 
@@ -193,16 +183,29 @@ namespace Gadgetron {
 
         GadgetronTimer timer("Preprocess");
         auto trajectories_scaled = trajectories;
-        auto matrix_size_os_real = vector_td<REAL,D>(matrix_size_os);
+        auto matrix_size_os_real = vector_td<REAL,D>(this->matrix_size_os);
         std::transform(trajectories_scaled.begin(),trajectories_scaled.end(),trajectories_scaled.begin(),[matrix_size_os_real](auto point){
            return (point+REAL(0.5))*matrix_size_os_real;
         });
 
-        convolution_matrix = NFFT_internal::make_NFFT_matrix(trajectories_scaled, this->matrix_size_os, W, beta);
+        convolution_matrix = NFFT_internal::make_NFFT_matrix(trajectories_scaled, this->matrix_size_os, this->W, beta);
         if (mode == NFFT_prep_mode::ALL || mode == NFFT_prep_mode::NC2C) {
             convolution_matrix_T = NFFT_internal::transpose(convolution_matrix);
         }
 
+    }
+
+    template<class REAL, unsigned int D>
+    void hoNFFT_plan<REAL, D>::compute(
+            const hoNDArray<ComplexType> &d,
+            hoNDArray<ComplexType> &m,
+            const hoNDArray<REAL> *dcw,
+            NFFT_comp_mode mode
+    ) {
+        const auto *pd = reinterpret_cast<const hoNDArray<complext<REAL>> *>(&d);
+        auto *pm = reinterpret_cast<hoNDArray<complext<REAL>> *>(&m);
+
+        this->compute(*pd, *pm, dcw, mode);
     }
 
     template<class REAL, unsigned int D>
@@ -212,68 +215,10 @@ namespace Gadgetron {
             const hoNDArray<REAL> *dcw,
             NFFT_comp_mode mode
     ) {
-        const hoNDArray<ComplexType> *pd = reinterpret_cast<const hoNDArray<ComplexType> *>(&d);
-        hoNDArray<ComplexType> *pm = reinterpret_cast<hoNDArray<ComplexType> *>(&m);
-
-        this->compute(*pd, *pm, dcw, mode);
+       NFFT_plan<hoNDArray,REAL,D>::compute(d,m,dcw,mode);
     }
 
-    template<class REAL, unsigned int D>
-    void hoNFFT_plan<REAL, D>::compute(
-            const hoNDArray<ComplexType> &d,
-            hoNDArray<ComplexType> &m,
-            const hoNDArray<REAL>* dcw,
-            NFFT_comp_mode mode
-    ) {
-        if (d.get_number_of_elements() == 0)
-            throw std::runtime_error("Empty data");
 
-        if (m.get_number_of_elements() == 0)
-            throw std::runtime_error("Empty gridding matrix");
-
-        hoNDArray<ComplexType> dtmp(d);
-
-        switch (mode) {
-            case NFFT_comp_mode::FORWARDS_C2NC: {
-
-                deapodize(dtmp, false);
-                fft(dtmp, NFFT_fft_mode::FORWARDS);
-                convolve(dtmp, m, NFFT_conv_mode::C2NC);
-
-                if(dcw) m *= *dcw;
-                break;
-            }
-            case NFFT_comp_mode::FORWARDS_NC2C: {
-
-                if (dcw) dtmp *= *dcw;
-
-                convolve(dtmp, m, NFFT_conv_mode::NC2C);
-                fft(m, NFFT_fft_mode::FORWARDS);
-                deapodize(m, true);
-
-                break;
-            }
-            case NFFT_comp_mode::BACKWARDS_NC2C: {
-
-
-                if (dcw) dtmp *= *dcw;
-                convolve(dtmp, m, NFFT_conv_mode::NC2C);
-                fft(m, NFFT_fft_mode::BACKWARDS);
-                deapodize(m,false);
-
-                break;
-            }
-            case NFFT_comp_mode::BACKWARDS_C2NC: {
-
-                deapodize(dtmp, true);
-                fft(dtmp, NFFT_fft_mode::BACKWARDS);
-                convolve(d, m, NFFT_conv_mode::C2NC);
-
-                if (dcw) m *= *dcw;
-                break;
-            }
-        };
-    }
 
     template<class REAL, unsigned int D>
     void hoNFFT_plan<REAL, D>::mult_MH_M(
@@ -293,7 +238,7 @@ namespace Gadgetron {
             hoNDArray<ComplexType> &out,
             const hoNDArray<REAL>* dcw
     ) {
-        hoNDArray<ComplexType> tmp(to_std_vector(matrix_size_os));
+        hoNDArray<ComplexType> tmp(to_std_vector(this->matrix_size_os));
         compute(in, tmp, dcw, NFFT_comp_mode::BACKWARDS_NC2C);
         compute(tmp, out,dcw, NFFT_comp_mode::FORWARDS_C2NC);
     }

@@ -1088,6 +1088,7 @@ namespace {
     template <typename T> 
     void sqrt(const hoNDArray<T>& x, hoNDArray<T>& r)
     {
+        using std::sqrt;
         if ( r.get_number_of_elements()!=x.get_number_of_elements())
         {
             r.create(x.get_dimensions());
@@ -1101,34 +1102,17 @@ namespace {
         #pragma omp parallel for default(none) private(n) shared(N, pX, pR) if (N>NumElementsUseThreading)
         for ( n=0; n<(long long)N; n++ )
         {
-            pR[n] = std::sqrt(pX[n]);
+            pR[n] = sqrt(pX[n]);
         }
     }
 
-    template <typename T> 
-    void sqrt(const hoNDArray< complext<T> >& x, hoNDArray< complext<T> >& r)
-    {
-        if ( r.get_number_of_elements()!=x.get_number_of_elements())
-        {
-            r.create(x.get_dimensions());
-        }
 
-        size_t N = x.get_number_of_elements();
-        const complext<T>* pX = x.begin();
-        complext<T>* pR = r.begin();
-
-        long long n;
-        #pragma omp parallel for default(none) private(n) shared(N, pX, pR) if (N>NumElementsUseThreading)
-        for ( n=0; n<(long long)N; n++ )
-        {
-            pR[n] = Gadgetron::sqrt(pX[n]);
-        }
-    }
 
     template EXPORTCPUCOREMATH void sqrt(const hoNDArray<float>& x, hoNDArray<float>& r);
     template EXPORTCPUCOREMATH void sqrt(const hoNDArray<double>& x, hoNDArray<double>& r);
     template EXPORTCPUCOREMATH void sqrt(const hoNDArray< std::complex<float> >& x, hoNDArray< std::complex<float> >& r);
     template EXPORTCPUCOREMATH void sqrt(const hoNDArray< std::complex<double> >& x, hoNDArray< std::complex<double> >& r);
+
     template EXPORTCPUCOREMATH void sqrt(const hoNDArray< complext<float> >& x, hoNDArray< complext<float> >& r);
     template EXPORTCPUCOREMATH void sqrt(const hoNDArray< complext<double> >& x, hoNDArray< complext<double> >& r);
 
@@ -2104,6 +2088,8 @@ namespace {
     template EXPORTCPUCOREMATH void conv2(const hoNDArray< std::complex<float> >& x, const hoNDArray< std::complex<float> >& y, hoNDArray< std::complex<float> >& z);
     template EXPORTCPUCOREMATH void conv2(const hoNDArray< std::complex<double> >& x, const hoNDArray< std::complex<double> >& y, hoNDArray< std::complex<double> >& z);
 
+    template EXPORTCPUCOREMATH void conv2(const hoNDArray< complext<float> >& x, const hoNDArray< complext<float> >& y, hoNDArray< complext<float> >& z);
+    template EXPORTCPUCOREMATH void conv2(const hoNDArray< complext<double> >& x, const hoNDArray< complext<double> >& y, hoNDArray< complext<double> >& z);
     // --------------------------------------------------------------------------------
 
     template<typename T> 
@@ -2239,6 +2225,8 @@ namespace {
     template EXPORTCPUCOREMATH void conv3(const hoNDArray< std::complex<float> >& x, const hoNDArray< std::complex<float> >& y, hoNDArray< std::complex<float> >& z);
     template EXPORTCPUCOREMATH void conv3(const hoNDArray< std::complex<double> >& x, const hoNDArray< std::complex<double> >& y, hoNDArray< std::complex<double> >& z);
 
+    template EXPORTCPUCOREMATH void conv3(const hoNDArray< complext<float> >& x, const hoNDArray< complext<float> >& y, hoNDArray< complext<float> >& z);
+    template EXPORTCPUCOREMATH void conv3(const hoNDArray< complext<double> >& x, const hoNDArray< complext<double> >& y, hoNDArray< complext<double> >& z);
     // --------------------------------------------------------------------------------
 
     template <typename T> 
@@ -2339,6 +2327,8 @@ namespace {
     template EXPORTCPUCOREMATH void sum_over_dimension(const hoNDArray< std::complex<float> >& x, hoNDArray< std::complex<float> >& y, size_t dim);
     template EXPORTCPUCOREMATH void sum_over_dimension(const hoNDArray< std::complex<double> >& x, hoNDArray< std::complex<double> >& y, size_t dim);
 
+    template EXPORTCPUCOREMATH void sum_over_dimension(const hoNDArray< complext<float> >& x, hoNDArray< complext<float> >& y, size_t dim);
+    template EXPORTCPUCOREMATH void sum_over_dimension(const hoNDArray< complext<double> >& x, hoNDArray< complext<double> >& y, size_t dim);
     // --------------------------------------------------------------------------------
 
     template<class T> hoNDArray<T>& operator+= (hoNDArray<T> &x, const T &y)

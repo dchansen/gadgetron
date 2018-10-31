@@ -51,6 +51,10 @@ namespace Gadgetron {
     class NFFT_plan {
     public:
 
+
+        NFFT_plan(const vector_td<size_t,D>& matrix_size, const vector_td<size_t,D>& matrix_size_os, REAL W);
+        NFFT_plan(const vector_td<size_t,D>& matrix_size, REAL oversampling_factor, REAL W);
+
         /**
            Perform NFFT preprocessing for a given trajectory.
            \param trajectory the NFFT non-Cartesian trajectory normalized to the range [-1/2;1/2].
@@ -66,9 +70,8 @@ namespace Gadgetron {
            \param[out] out the output array.
            \param mode enum class specifying the mode of operation.
         */
-        virtual void compute(const ARRAY<complext<REAL>>& in, ARRAY<complext < REAL>>&out,
-        const ARRAY<REAL> *dcw, NFFT_comp_mode
-        mode) = 0;
+        virtual void compute(const ARRAY<complext<REAL>>& in, ARRAY<complext<REAL>>&out,
+        const ARRAY<REAL> *dcw, NFFT_comp_mode mode);
 
         /**
            Execute an NFFT iteraion (from Cartesian image space to non-Cartesian Fourier space and back to Cartesian image space).
@@ -80,7 +83,7 @@ namespace Gadgetron {
         */
         virtual void mult_MH_M(const ARRAY<complext<REAL>>& in, ARRAY<complext < REAL>>& out,
         const ARRAY<REAL> *dcw
-        ) = 0;
+        );
 
     public: // Utilities
 
@@ -147,12 +150,25 @@ namespace Gadgetron {
 
     protected:
 
+        // Dedicated computes
+        virtual void compute_NFFT_C2NC(ARRAY <complext<REAL>>&in, ARRAY <complext<REAL>>& out);
+
+        virtual void compute_NFFT_NC2C(const ARRAY <complext<REAL>>& in, ARRAY <complext<REAL>>& out);
+
+
+        virtual void compute_NFFTH_NC2C(const ARRAY <complext<REAL>>& in, ARRAY <complext<REAL>>& out);
+
+        virtual void compute_NFFTH_C2NC(ARRAY <complext<REAL>>& in, ARRAY <complext<REAL>>& out);
+
+
         typename uint64d<D>::Type matrix_size;          // Matrix size
         typename uint64d<D>::Type matrix_size_os;       // Oversampled matrix size
         REAL W;
 
 
     };
+
+
 
 
 }

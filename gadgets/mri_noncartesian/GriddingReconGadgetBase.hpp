@@ -156,7 +156,7 @@ template<template<class> class ARRAY> 	boost::shared_ptr<ARRAY<float_complext> >
 		ARRAY<floatd2>* traj,
 		ARRAY<float>* dcw,
 		size_t ncoils ) {
-
+		GadgetronTimer timer("Reconstruct");
 		//We have density compensation and iteration is set to false
 		if (!iterate.value() && dcw) { 
 
@@ -181,6 +181,9 @@ template<template<class> class ARRAY> 	boost::shared_ptr<ARRAY<float_complext> >
 			auto E = boost::make_shared<NFFTOperator<ARRAY,float,2>>();
 
 			E->setup(from_std_vector<size_t,2>(image_dims_),image_dims_os_,kernel_width_);
+			if (dcw){
+				E->set_dcw(boost::make_shared<ARRAY<float>>(*dcw));
+			}
 			std::vector<size_t> flat_dims = {traj->get_number_of_elements()};
 			ARRAY<floatd2> flat_traj(flat_dims,traj->get_data_ptr());
 

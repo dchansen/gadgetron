@@ -47,10 +47,9 @@ namespace cuNFFT {
     struct convolverC2NC;
 }
 
+        template <class REAL, unsigned int D>
+        using cuNFFT_plan = NFFT_plan<cuNDArray,REAL,D>;
 
-        template<class REAL, unsigned int D> class cuNFFT_plan : public NFFT_plan<cuNDArray,REAL,D> {
-
-        };
 
     /** \class cuNFFT_impl
         \brief Cuda implementation of the non-Cartesian FFT
@@ -102,27 +101,6 @@ namespace cuNFFT {
         virtual void preprocess(const cuNDArray<typename reald<REAL, D>::Type>& trajectory, NFFT_prep_mode mode = NFFT_prep_mode::ALL) override;
 
 
-        /**
-           Execute the NFFT.
-           \param[in] in the input array.
-           \param[out] out the output array.
-           \param[in] dcw optional density compensation weights weighing the input samples according to the sampling density.
-           If an 0x0-pointer is provided no density compensation is used.
-           \param mode enum class specifying the mode of operation.
-        */
-        virtual void compute(const cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>>& out,
-                             const cuNDArray <REAL> *dcw, NFFT_comp_mode mode) override;
-
-        /**
-           Execute an NFFT iteraion (from Cartesian image space to non-Cartesian Fourier space and back to Cartesian image space).
-           \param[in] in the input array.
-           \param[out] out the output array.
-           \param[in] dcw optional density compensation weights weighing the input samples according to the sampling density.
-           If an 0x0-pointer is provided no density compensation is used.
-           \param[in] halfway_dims specifies the dimensions of the intermediate Fourier space (codomain).
-        */
-        virtual void mult_MH_M(const cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>>& out,
-                               const cuNDArray <REAL> *dcw ) override;
 
     public: // Utilities
 
@@ -158,6 +136,8 @@ namespace cuNFFT {
         friend class cuNFFT::convolverNC2C<REAL, D, CONV>;
         friend class cuNFFT::convolverC2NC<REAL, D, CONV>;
 
+
+
     private: // Internal to the implementation
 
         void check_consistency(const cuNDArray <complext<REAL>> *samples, const cuNDArray <complext<REAL>> *image,
@@ -174,14 +154,6 @@ namespace cuNFFT {
 
         compute_deapodization_filter(bool FFTed = false);
 
-        // Dedicated computes
-        void compute_NFFT_C2NC(cuNDArray <complext<REAL>>&in, cuNDArray <complext<REAL>>& out);
-
-        void compute_NFFT_NC2C(const cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>>& out);
-
-        void compute_NFFTH_NC2C(const cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>>& out);
-
-        void compute_NFFTH_C2NC(cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>>& out);
 
 
         // Internal utility

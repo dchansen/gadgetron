@@ -79,7 +79,8 @@ extern __shared__ char _shared_mem[];
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
 Gadgetron::cuNFFT_impl<REAL, D, CONV>::cuNFFT_impl(typename uint64d<D>::Type matrix_size,
-                                                   typename uint64d<D>::Type matrix_size_os, REAL W, int _device) {
+                                                   typename uint64d<D>::Type matrix_size_os, REAL W, int _device) :
+                                                   NFFT_plan<cuNDArray,REAL,D>(matrix_size,matrix_size_os,W){
     // Minimal initialization
     barebones();
     //
@@ -117,8 +118,6 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::cuNFFT_impl(typename uint64d<D>::Type mat
     // Setup private variables
     //
 
-    this->matrix_size = matrix_size;
-    this->matrix_size_os = matrix_size_os;
 
     REAL W_half = REAL(0.5) * W;
     vector_td<REAL, D>
@@ -134,7 +133,6 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::cuNFFT_impl(typename uint64d<D>::Type mat
         throw std::runtime_error("Error: cuNFFT : Illegal oversampling ratio suggested");
     }
 
-    this->W = W;
 
     // Compute Kaiser-Bessel beta
     compute_beta();
@@ -261,126 +259,6 @@ cuNFFT::convolverNC2C<REAL, D, ConvolutionType::STANDARD>::prepare(cuNFFT_impl<R
     upper_bound(tuples_first.begin(), tuples_first.end(), search_begin, search_begin + number_of_frames * prod(
             matrix_size_os + matrix_size_wrap), bucket_end.begin());
 
-}
-
-template<class REAL, unsigned int D, ConvolutionType CONV>
-void
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute(const cuNDArray <complext<REAL>> &in, cuNDArray <complext<REAL>>& out,
-                                               const cuNDArray <REAL> *dcw, NFFT_comp_mode mode) {
-    // Validity checks
-    {
-        const cuNDArray <complext<REAL>> *samples;
-        const cuNDArray<complext<REAL>> *image;
-
-        if (mode == NFFT_comp_mode::FORWARDS_C2NC || mode == NFFT_comp_mode::BACKWARDS_C2NC) {
-            image = &in;
-            samples = &out;
-        } else {
-            image = &out;
-            samples = &in;
-        }
-
-        check_consistency(samples, image, dcw);
-    }
-
-    typename uint64d<D>::Type image_dims = from_std_vector<size_t, D>
-            ((mode == NFFT_comp_mode::FORWARDS_C2NC || mode == NFFT_comp_mode::BACKWARDS_C2NC) ? *in.get_dimensions()
-                                                                                               : *out.get_dimensions());
-    bool oversampled_image = (image_dims == this->matrix_size_os);
-
-    vector<size_t> vec_dims = to_std_vector(this->matrix_size_os);
-    {
-        const auto image = ((mode == NFFT_comp_mode::FORWARDS_C2NC ||
-                                              mode == NFFT_comp_mode::BACKWARDS_C2NC) ? &in : &out);
-        for (unsigned int d = D; d < image->get_number_of_dimensions(); d++)
-            vec_dims.push_back(image->get_size(d));
-    }
-
-
-    switch (mode) {
-
-        case NFFT_comp_mode::FORWARDS_C2NC: {
-            if (!oversampled_image) {
-                auto working_image = cuNDArray <complext<REAL>>(&vec_dims);
-                pad<complext<REAL>,D> (in, working_image);
-                compute_NFFT_C2NC(working_image, out);
-            } else {
-                auto copy = in;
-                compute_NFFT_C2NC(copy, out);
-            }
-
-            if (dcw){
-                out *= *dcw;
-            }
-
-        }
-        break;
-
-        case NFFT_comp_mode::FORWARDS_NC2C: {
-
-            // Density compensation
-            auto working_samples = in;
-            boost::shared_ptr<cuNDArray<complext<REAL>>> samples_dcw;
-            if (dcw) {
-                working_samples *= *dcw;
-            }
-
-
-            if (!oversampled_image) {
-                auto working_image = cuNDArray <complext<REAL>>(&vec_dims);
-                compute_NFFT_NC2C(working_samples, working_image);
-                crop < complext < REAL > , D >
-                       ((this->matrix_size_os - this->matrix_size) >> 1, working_image, out);
-            } else {
-                compute_NFFT_NC2C(working_samples, out);
-            }
-        }
-        break;
-
-        case NFFT_comp_mode::BACKWARDS_NC2C: {
-
-            // Density compensation
-            const cuNDArray<complext<REAL>>* working_samples = &in;
-            boost::shared_ptr<cuNDArray<complext<REAL>>> samples_dcw;
-            if (dcw) {
-                samples_dcw = boost::make_shared<cuNDArray < complext < REAL>>>(in);
-                *samples_dcw *= *dcw;
-                working_samples = samples_dcw.get();
-            }
-
-
-            if (!oversampled_image) {
-                auto working_image = cuNDArray <complext<REAL>>(&vec_dims);
-                compute_NFFTH_NC2C(working_samples, working_image);
-                crop < complext < REAL > , D >
-                                           ((this->matrix_size_os - this->matrix_size) >> 1, &working_image, out);
-            } else {
-                compute_NFFTH_NC2C(*working_samples, out);
-            }
-
-        }
-        break;
-
-        case NFFT_comp_mode::BACKWARDS_C2NC: {
-
-            if (!oversampled_image) {
-                auto working_image = cuNDArray < complext < REAL >> (&vec_dims);
-                pad < complext < REAL > , D > (in, working_image);
-                compute_NFFTH_C2NC(working_image, out);
-            } else {
-                auto copy = in;
-                compute_NFFTH_C2NC(copy, out);
-            }
-
-            if (dcw)
-                out *= *dcw;
-        }
-
-        break;
-    };
-
-
-    CHECK_FOR_CUDA_ERROR();
 }
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
@@ -692,70 +570,6 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_deapodization_filter(bool FFTed) 
     // Reciprocal
     reciprocal_inplace(filter.get());
     return filter;
-}
-
-template<class REAL, unsigned int D, ConvolutionType CONV>
-void
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFT_C2NC(cuNDArray <complext<REAL>>& image,
-                                                         cuNDArray <complext<REAL>>& samples) {
-    // private method - no consistency check. We trust in ourselves.
-
-    // Deapodization
-    deapodize(image);
-
-    // FFT
-    fft(image, NFFT_fft_mode::FORWARDS);
-
-    // Convolution
-    convolve(image, samples,  NFFT_conv_mode::C2NC);
-}
-
-template<class REAL, unsigned int D, ConvolutionType CONV>
-void
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFTH_NC2C(const cuNDArray <complext<REAL>>& samples,
-                                                          cuNDArray <complext<REAL>>& image) {
-    // private method - no consistency check. We trust in ourselves.
-
-    // Convolution
-    convolve(samples, image,  NFFT_conv_mode::NC2C);
-
-    // FFT
-    fft(image, NFFT_fft_mode::BACKWARDS);
-
-    // Deapodization
-    deapodize(image);
-}
-
-template<class REAL, unsigned int D, ConvolutionType CONV>
-void
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFTH_C2NC(cuNDArray <complext<REAL>>& image,
-                                                          cuNDArray <complext<REAL>>& samples) {
-    // private method - no consistency check. We trust in ourselves.
-
-    // Deapodization
-    deapodize(image, true);
-
-    // FFT
-    fft(image, NFFT_fft_mode::BACKWARDS);
-
-    // Convolution
-    convolve(image, samples,  NFFT_conv_mode::C2NC);
-}
-
-template<class REAL, unsigned int D, ConvolutionType CONV>
-void
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFT_NC2C(const cuNDArray <complext<REAL>>& samples,
-                                                         cuNDArray <complext<REAL>>& image) {
-    // private method - no consistency check. We trust in ourselves.
-
-    // Convolution
-    convolve(samples, image, NFFT_conv_mode::NC2C);
-
-    // FFT
-    fft(image, NFFT_fft_mode::FORWARDS);
-
-    // Deapodization
-    deapodize(image, true);
 }
 
 

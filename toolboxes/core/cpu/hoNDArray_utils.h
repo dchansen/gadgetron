@@ -635,6 +635,11 @@ namespace Gadgetron {
       }
   }
 
+  template<class T, unsigned int D> void pad(const hoNDArray<T>& in, hoNDArray<T>& out, T val = T(0)){
+        vector_td<size_t,D> dims = from_std_vector<size_t,D>(*out.get_dimensions());
+        pad<T,D>(dims,in,out,true, val);
+  }
+
   template<class T> void
   pad(size_t x, const hoNDArray<T>& in, hoNDArray<T>& out, bool preset_out_with_val = true, T val = T(0))
   {
