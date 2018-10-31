@@ -116,10 +116,10 @@ template<template<class> class ARRAY> 	int GriddingReconGadgetBase<ARRAY>::proce
 			auto images = reconstruct(&data,traj.get(),dcw.get(),CHA);
 
 			//Calculate coil sensitivity map
-			auto csm = estimate_b1_map<float,2>(images.get());
+			auto csm = estimate_b1_map<float,2>(*images);
 
                         //Coil combine
-			*images *= *conj(csm.get());
+			*images *= *conj(&csm);
 			auto combined = sum(images.get(),images->get_number_of_dimensions()-1);
 				
 			auto host_img = as_hoNDArray(combined);
@@ -140,7 +140,7 @@ template<template<class> class ARRAY> 	int GriddingReconGadgetBase<ARRAY>::proce
 			//Is this where we measure SNR?
 			if (replicas.value() > 0 && snr_frame.value() == process_called_times) {
 
-				pseudo_replica(buffer->data_,*traj,*dcw,*csm,recon_bit_->rbit_[e],e,CHA);
+				pseudo_replica(buffer->data_,*traj,*dcw,csm,recon_bit_->rbit_[e],e,CHA);
 			}
 		}
 		

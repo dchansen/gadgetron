@@ -161,7 +161,7 @@ int main(int argc, char** argv)
   // Estimate csm
   boost::shared_ptr< cuNDArray<_complext> > acc_images = rhs_buffer->get_accumulated_coil_images();
   *acc_images *= rhs_buffer->get_normalization_factor();
-  boost::shared_ptr< cuNDArray<_complext> > csm = estimate_b1_map<_real,2>( acc_images.get() );
+  auto csm = boost::make_shared<cuNDArray<_complext>>(estimate_b1_map<_real,2>( *acc_images.get() ));
   E->set_csm(csm);
 
   std::vector<size_t> reg_dims = to_std_vector(matrix_size);

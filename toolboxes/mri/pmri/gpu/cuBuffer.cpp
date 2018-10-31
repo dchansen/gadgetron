@@ -98,9 +98,17 @@ namespace Gadgetron{
     
     // Convolve to form k-space frame (accumulation mode)
     //
-    
-    nfft_plan_->convolve( *samples, cur_buffer, dcw_.get(), NFFT_conv_mode::NC2C, true );
 
+    {
+      if (dcw_) {
+        auto samples_rescaled = *samples;
+        samples_rescaled *= *dcw_;
+        nfft_plan_->convolve(samples_rescaled, cur_buffer, NFFT_conv_mode::NC2C, true);
+      } else {
+        nfft_plan_->convolve(*samples, cur_buffer, NFFT_conv_mode::NC2C, true);
+      }
+
+    }
     // Update the accumulation buffer (if it is time...)
     //
 

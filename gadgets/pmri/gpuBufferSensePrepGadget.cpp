@@ -121,12 +121,12 @@ int gpuBufferSensePrepGadget::process(
 		//reg_images->squeeze();
 
 		auto csm = estimate_b1_map<float,2>(reg_images.get());
-		*reg_images *= *csm;
+		*reg_images *= csm;
 		auto combined = sum(reg_images.get(),reg_images->get_number_of_dimensions()-1);
 
 		auto tmp_combined = abs(reg_images.get());
-		auto tmpcsm = abs(csm.get());
-		job.csm_host_ = csm->to_host();
+		auto tmpcsm = abs(&csm);
+		job.csm_host_ = csm.to_host();
 		job.reg_host_ = combined->to_host();
 	}
 

@@ -872,14 +872,14 @@ namespace {
     struct coil_algorithm_wrapper {};
 
     template<class REAL> struct coil_algorithm_wrapper<REAL,2> {
-        static hoNDArray<complext<REAL>> estimate_b1_map(const hoNDArray<float_complext>& data){
+        static hoNDArray<complext<REAL>> estimate_b1_map(const hoNDArray<complext<REAL>>& data){
             hoNDArray<float_complext> output(data.get_dimensions());
             coil_map_2d_Inati(data,output);
             return output;
         }
     };
     template<class REAL> struct coil_algorithm_wrapper<REAL,3> {
-        static hoNDArray<complext<REAL>> estimate_b1_map(const hoNDArray<float_complext>& data){
+        static hoNDArray<complext<REAL>> estimate_b1_map(const hoNDArray<complext<REAL>>& data){
             hoNDArray<float_complext> output(data.get_dimensions());
             coil_map_3d_Inati(data,output);
             return output;
@@ -889,9 +889,15 @@ namespace {
 
 
 template<class REAL, unsigned int D>
-hoNDArray<complext<REAL>> estimate_b1_map(const hoNDArray<float_complext>& data) {
+hoNDArray<complext<REAL>> estimate_b1_map(const hoNDArray<complext<REAL>>& data) {
     return std::move(coil_algorithm_wrapper<REAL,D>::estimate_b1_map(data));
 }
+
+
+template EXPORTMRICORE hoNDArray<complext<float>> estimate_b1_map<float,2>(const hoNDArray<float_complext>& data);
+template EXPORTMRICORE hoNDArray<complext<float>> estimate_b1_map<float,3>(const hoNDArray<float_complext>& data);
+
+
 
 
 }

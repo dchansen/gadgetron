@@ -164,7 +164,7 @@ int main(int argc, char** argv)
   timer = new GPUTimer("Estimating csm");
 
   boost::shared_ptr< cuNDArray<_complext> > acc_images = rhs_buffer->get_accumulated_coil_images();
-  boost::shared_ptr< cuNDArray<_complext> > csm = estimate_b1_map<_real,2>( acc_images.get() );  
+  boost::shared_ptr< cuNDArray<_complext> > csm = boost::make_shared<cuNDArray<_complext>>(estimate_b1_map<_real,2>( *acc_images.get() ));
   E->set_csm(csm);
 
   delete timer;

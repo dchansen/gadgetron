@@ -386,13 +386,15 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute(const cuNDArray <complext<REAL>> 
 template<class REAL, unsigned int D, ConvolutionType CONV>
 void
 Gadgetron::cuNFFT_impl<REAL, D, CONV>::mult_MH_M(const cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>>& out,
-                                                 const cuNDArray <REAL> *dcw, std::vector<size_t> halfway_dims) {
+                                                 const cuNDArray <REAL> *dcw ) {
     // Validity checks
     if (in.get_number_of_elements() != out.get_number_of_elements()) {
         throw std::runtime_error("Error: cuNFFT_impl::mult_MH_M: in/out image sizes mismatch");
     }
 
-    cuNDArray <complext<REAL>> working_samples(&halfway_dims);
+    auto halfway_dims = to_std_vector(this->matrix_size_os);
+    halfway_dims.push_back(in.get_number_of_elements()/prod(this->matrix_size_os));
+    cuNDArray <complext<REAL>> working_samples(halfway_dims);
 
     check_consistency(&working_samples, &in, dcw);
 
@@ -436,7 +438,7 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::mult_MH_M(const cuNDArray <complext<REAL>
 template<class REAL, unsigned int D, ConvolutionType CONV>
 void
 Gadgetron::cuNFFT_impl<REAL, D, CONV>::convolve(const cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>> & out,
-                                                const cuNDArray <REAL> *dcw, NFFT_conv_mode mode, bool accumulate) {
+                                                 NFFT_conv_mode mode, bool accumulate) {
 
     {
         const cuNDArray <complext<REAL>> *samples, *image;
@@ -449,11 +451,8 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::convolve(const cuNDArray <complext<REAL>>
             samples = &in;
         }
 
-        check_consistency(samples, image, dcw);
+        check_consistency(samples, image, 0x0 );
     }
-
-
-
 
     typename uint64d<D>::Type image_dims = from_std_vector<size_t, D>
             (*(((mode == NFFT_conv_mode::C2NC) ? in : out).get_dimensions()));
@@ -463,35 +462,13 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::convolve(const cuNDArray <complext<REAL>>
         throw std::runtime_error("Error: cuNFFT_impl::convolve: ERROR: oversampled image not provided as input.");
     }
 
-    vector<size_t> vec_dims = to_std_vector(this->matrix_size_os);
-    {
-        const cuNDArray <complext<REAL>>& image = ((mode == NFFT_conv_mode::C2NC) ? in : out);
-        for (unsigned int d = D; d < image.get_number_of_dimensions(); d++)
-            vec_dims.push_back(image.get_size(d));
-    }
-
     switch (mode) {
-
         case NFFT_conv_mode::C2NC:
             convC2NC.convolve_C2NC(this,&in, &out, accumulate);
-            if (dcw) out *= *dcw;
             break;
-
         case NFFT_conv_mode::NC2C:
-
-            // Density compensation
-            if (dcw) {
-                auto working_samples = cuNDArray <complext<REAL>>(in);
-                working_samples *= *dcw;
-                convNC2C.convolve_NC2C(this, &working_samples, &out, accumulate);
-            } else {
                 convNC2C.convolve_NC2C(this, &in, &out, accumulate);
-            }
-
             break;
-
-        default:
-            throw std::runtime_error("Error: cuNFFT_impl::convolve: unknown mode.");
     }
 
 }
@@ -730,7 +707,7 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFT_C2NC(cuNDArray <complext<REA
     fft(image, NFFT_fft_mode::FORWARDS);
 
     // Convolution
-    convolve(image, samples, 0x0, NFFT_conv_mode::C2NC);
+    convolve(image, samples,  NFFT_conv_mode::C2NC);
 }
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
@@ -740,7 +717,7 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFTH_NC2C(const cuNDArray <compl
     // private method - no consistency check. We trust in ourselves.
 
     // Convolution
-    convolve(samples, image, 0x0, NFFT_conv_mode::NC2C);
+    convolve(samples, image,  NFFT_conv_mode::NC2C);
 
     // FFT
     fft(image, NFFT_fft_mode::BACKWARDS);
@@ -762,7 +739,7 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFTH_C2NC(cuNDArray <complext<RE
     fft(image, NFFT_fft_mode::BACKWARDS);
 
     // Convolution
-    convolve(image, samples, 0x0, NFFT_conv_mode::C2NC);
+    convolve(image, samples,  NFFT_conv_mode::C2NC);
 }
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
@@ -772,7 +749,7 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::compute_NFFT_NC2C(const cuNDArray <comple
     // private method - no consistency check. We trust in ourselves.
 
     // Convolution
-    convolve(samples, image, 0x0, NFFT_conv_mode::NC2C);
+    convolve(samples, image, NFFT_conv_mode::NC2C);
 
     // FFT
     fft(image, NFFT_fft_mode::FORWARDS);

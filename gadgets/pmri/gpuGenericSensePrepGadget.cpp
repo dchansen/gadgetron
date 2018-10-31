@@ -542,7 +542,7 @@ namespace Gadgetron{
         		csm_ = boost::make_shared<cuNDArray<float_complext>>(csm_data->get_dimensions());
         		fill(csm_.get(),float_complext(1.0,0));
         	} else
-        		csm_ = estimate_b1_map<float,2>( csm_data.get() );
+        		csm_ = boost::make_shared<cuNDArray<float_complext>>(estimate_b1_map<float,2>(*csm_data));
         }
         else{
           GDEBUG("Set %d is reusing the csm from set %d\n", set, propagate_csm_from_set_);

@@ -10,7 +10,7 @@ namespace Gadgetron{
   {  
   public:
 
-    using NFFT_plan = typename NFFT<ARRAY,REAL,D>::NFFT_plan;
+
     NFFTOperator();
   
     virtual ~NFFTOperator() {}
@@ -18,7 +18,7 @@ namespace Gadgetron{
     virtual void set_dcw( boost::shared_ptr< ARRAY<REAL> > dcw ) { dcw_ = dcw; }
     inline boost::shared_ptr< ARRAY<REAL> > get_dcw() { return dcw_; }
 
-    inline boost::shared_ptr<NFFT_plan> get_plan() { return plan_; }
+    inline boost::shared_ptr<NFFT_plan<ARRAY,REAL,D>> get_plan() { return plan_; }
   
     virtual void setup( typename uint64d<D>::Type matrix_size, typename uint64d<D>::Type matrix_size_os, REAL W );
     virtual void preprocess(const ARRAY<typename reald<REAL,D>::Type>& trajectory );
@@ -29,7 +29,7 @@ namespace Gadgetron{
 
 
   protected:
-    boost::shared_ptr<NFFT_plan> plan_;
+    boost::shared_ptr<NFFT_plan<ARRAY,REAL,D>> plan_;
     boost::shared_ptr< ARRAY<REAL> > dcw_;
   };
 }

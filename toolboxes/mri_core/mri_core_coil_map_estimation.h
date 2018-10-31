@@ -55,7 +55,7 @@ namespace Gadgetron
     template<typename T> EXPORTMRICORE void coil_map_Inati_Iter(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t ks=7, size_t kz=5, size_t iterNum=5, typename realType<T>::Type thres=0.001);
 
     template<class REAL,unsigned int D>
-    boost::shared_ptr<hoNDArray<complext<REAL>>>  estimate_b1_map(hoNDArray<float_complext>* data);
+    EXPORTMRICORE hoNDArray<complext<REAL>>  estimate_b1_map(const hoNDArray<complext<REAL>>& data);
 
     // coil combination
     // the cha_dim = 2 for 2D case, e.g.

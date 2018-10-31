@@ -165,7 +165,7 @@ boost::shared_ptr<cuNDArray<float_complext> > gpuCSICoilEstimationGadget::calcul
 
 		auto tmp_abs = abs(&tmp);
 
-		return estimate_b1_map<float,2>(&tmp);
+		return boost::make_shared<cuNDArray<float_complext>>(estimate_b1_map<float,2>(tmp));
 
 	} else { //No density compensation, we have to do iterative reconstruction.
 
@@ -187,11 +187,11 @@ boost::shared_ptr<cuNDArray<float_complext> > gpuCSICoilEstimationGadget::calcul
 
 
 
-		auto res = estimate_b1_map<float,2>(tmp.get());
+		auto res = estimate_b1_map<float,2>(*tmp);
 		//fill(res.get(),float_complext(1,0));
 		//auto res= boost::make_shared<cuNDArray<float_complext>>(csm_dims);
 		//fill(res.get(),float_complext(1,0));
-		return res;
+		return boost::make_shared<cuNDArray<float_complext>>(res);
 
 	}
 

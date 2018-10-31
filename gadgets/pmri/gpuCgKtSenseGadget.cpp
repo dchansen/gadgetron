@@ -323,8 +323,8 @@ namespace Gadgetron{
   
     // Convolve to Cartesian k-space
     //
-
-    E_->get_plan()->convolve( data, image_os, &dcw, NFFT_conv_mode::NC2C );
+    data *= dcw;
+    E_->get_plan()->convolve( data, image_os,  NFFT_conv_mode::NC2C );
 
     // Apply shutter
     //

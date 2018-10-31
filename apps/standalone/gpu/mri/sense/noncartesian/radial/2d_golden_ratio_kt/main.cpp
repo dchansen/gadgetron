@@ -162,7 +162,7 @@ int main(int argc, char** argv)
   }
   
   boost::shared_ptr< cuNDArray<_complext> > acc_images = rhs_buffer->get_accumulated_coil_images();
-  boost::shared_ptr< cuNDArray<_complext> > csm = estimate_b1_map<_real,2>( acc_images.get() );
+  auto csm = boost::make_shared<cuNDArray<_complext>>(estimate_b1_map<_real,2>( *acc_images.get()));
 
   E->set_csm(csm);
 
@@ -230,13 +230,22 @@ int main(int argc, char** argv)
     E->preprocess( traj.get() );
     
     // Upload data
-    boost::shared_ptr< cuNDArray<_complext> > data = upload_data
-      ( reconstruction, samples_per_reconstruction, num_profiles*samples_per_profile, num_coils, host_data.get() );
 
-    E->set_codomain_dimensions(data->get_dimensions().get());    
+    boost::shared_ptr<cuNDArray<_complext> > data = upload_data
+              (reconstruction, samples_per_reconstruction, num_profiles * samples_per_profile, num_coils,
+               host_data.get());
 
-    // Convolve to Cartesian k-space
-    E->get_plan()->convolve( *data, *image_os, dcw.get(), NFFT_conv_mode::NC2C );
+    E->set_codomain_dimensions(data->get_dimensions().get());
+
+    {
+      auto data_view = data;
+      // Convolve to Cartesian k-space
+      if (dcw) {
+        data_view = boost::make_shared<cuNDArray<_complext>>(*data);
+        *data_view *= *dcw;
+      }
+      E->get_plan()->convolve(*data_view, *image_os, NFFT_conv_mode::NC2C);
+    }
 
     // Apply shutter
     fill_border<_complext,2>( shutter_radius, *image_os );

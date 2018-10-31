@@ -337,7 +337,7 @@ namespace Gadgetron {
 
         // Check if we need to compute a new csm
         if (propagate_csm_from_set_ < 0 || propagate_csm_from_set_ == set || !csm_) {
-            csm_ = estimate_b1_map<float, 2>(&image); // Estimates csm
+            csm_ = boost::make_shared<cuNDArray<float_complext>>(estimate_b1_map<float, 2>(&image)); // Estimates csm
         }
         E_->set_csm(csm_);
 

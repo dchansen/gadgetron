@@ -38,6 +38,8 @@ enum class ConvolutionType {
 
 namespace Gadgetron {
 
+
+
 namespace cuNFFT {
     template<class REAL, unsigned int D, ConvolutionType CONV>
     struct convolverNC2C;
@@ -46,7 +48,9 @@ namespace cuNFFT {
 }
 
 
+        template<class REAL, unsigned int D> class cuNFFT_plan : public NFFT_plan<cuNDArray,REAL,D> {
 
+        };
 
     /** \class cuNFFT_impl
         \brief Cuda implementation of the non-Cartesian FFT
@@ -65,7 +69,7 @@ namespace cuNFFT {
         Notice: currently no devices support atomics operations in double precision.
     */
     template<class REAL, unsigned int D, ConvolutionType CONV = ConvolutionType::STANDARD>
-    class EXPORTGPUNFFT cuNFFT_impl : public NFFT_plan<cuNDArray,REAL, D> {
+    class EXPORTGPUNFFT cuNFFT_impl : public cuNFFT_plan<REAL, D> {
 
     public: // Main interface
 
@@ -118,7 +122,7 @@ namespace cuNFFT {
            \param[in] halfway_dims specifies the dimensions of the intermediate Fourier space (codomain).
         */
         virtual void mult_MH_M(const cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>>& out,
-                               const cuNDArray <REAL> *dcw, std::vector<size_t> halfway_dims) override;
+                               const cuNDArray <REAL> *dcw ) override;
 
     public: // Utilities
 
@@ -132,7 +136,7 @@ namespace cuNFFT {
            \param[in] mode enum class specifying the mode of the convolution
            \param[in] accumulate specifies whether the result is added to the output (accumulation) or if the output is overwritten.
         */
-        virtual void convolve(const cuNDArray <complext<REAL>> & in, cuNDArray <complext<REAL>> & out, const cuNDArray <REAL> *dcw,
+        virtual void convolve(const cuNDArray <complext<REAL>> & in, cuNDArray <complext<REAL>> & out,
                               NFFT_conv_mode mode, bool accumulate = false) override;
 
 
@@ -208,7 +212,7 @@ namespace cuNFFT {
         deapodization_filterFFT; //Fourier transformed deapodization filter
 
         thrust::device_vector<vector_td<REAL, D>> trajectory_positions;
-
+        int device;
 
         //
         // State variables
@@ -288,14 +292,12 @@ namespace cuNFFT {
 
    template<class REAL, unsigned int D> EXPORTGPUNFFT struct NFFT<cuNDArray,REAL,D> {
 
-        using NFFT_plan = cuNFFT_plan<REAL,D>;
 
        static boost::shared_ptr<cuNFFT_plan<REAL,D>> make_plan(const vector_td<size_t,D>& matrix_size, const vector_td<size_t,D>& matrix_size_os,
                     REAL W,ConvolutionType conv = ConvolutionType::STANDARD);
     };
    template<unsigned int D> EXPORTGPUNFFT struct NFFT<cuNDArray,double,D> {
 
-       using NFFT_plan = cuNFFT_plan<double,D>;
        static boost::shared_ptr<cuNFFT_plan<double,D>> make_plan(const vector_td<size_t,D>& matrix_size, const vector_td<size_t,D>& matrix_size_os,
                     double W,ConvolutionType conv = ConvolutionType::STANDARD);
     };
