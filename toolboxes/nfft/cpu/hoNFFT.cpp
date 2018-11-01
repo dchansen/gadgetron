@@ -27,6 +27,7 @@
 #include "GadgetronTimer.h"
 
 #include "NFFT.hpp"
+#include "NDArray_utils.h"
 
 using namespace std;
 
@@ -189,10 +190,16 @@ namespace Gadgetron {
            return (point+REAL(0.5))*matrix_size_os_real;
         });
 
-        convolution_matrix = NFFT_internal::make_NFFT_matrix(trajectories_scaled, this->matrix_size_os, this->W, beta);
-        if (mode == NFFT_prep_mode::ALL || mode == NFFT_prep_mode::NC2C) {
-            convolution_matrix_T = NFFT_internal::transpose(convolution_matrix);
+        convolution_matrix.reserve(this->number_of_frames);
+        convolution_matrix_T.reserve(this->number_of_frames);
+
+        for (auto traj : NDArrayViewRange<hoNDArray<vector_td<REAL,D>>>(trajectories_scaled,0)){
+            convolution_matrix.push_back(NFFT_internal::make_NFFT_matrix(traj, this->matrix_size_os, this->W, beta));
+            if (mode == NFFT_prep_mode::ALL || mode == NFFT_prep_mode::NC2C) {
+                convolution_matrix_T.push_back(NFFT_internal::transpose(convolution_matrix.back()));
+            }
         }
+
 
     }
 

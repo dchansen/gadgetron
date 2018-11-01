@@ -291,6 +291,7 @@ namespace Gadgetron
         this->elements_ = a.elements_;
         a.data_ = nullptr;
         this->offsetFactors_ = a.offsetFactors_;
+        this->delete_data_on_destruct_ = a.delete_data_on_destruct_;
     }
 #endif
 
@@ -324,18 +325,13 @@ namespace Gadgetron
     hoNDArray<T>& hoNDArray<T>::operator=(hoNDArray<T>&& rhs)
     {
         if ( &rhs == this ) return *this;
-
-        if (!this->delete_data_on_destruct_ ) {
-            return this->operator=(const_cast<const hoNDArray<T>&>(rhs));
-        }
-
         this->clear();
         this->dimensions_ = rhs.dimensions_;
         this->offsetFactors_ = rhs.offsetFactors_;
         this->elements_ = rhs.elements_;
-
         data_ = rhs.data_;
         rhs.data_ = nullptr;
+        this->delete_data_on_destruct_ = rhs.delete_data_on_destruct_;
         return *this;
     }
 #endif

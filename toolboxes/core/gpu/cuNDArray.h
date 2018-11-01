@@ -176,6 +176,7 @@ namespace Gadgetron{
         this->dimensions_ = a.dimensions_;
         this->elements_ = a.elements_;
         a.data_=nullptr;
+        this->delete_data_on_destruct_ = a.deletec_data_on_destruct_;
     }
 #endif
     template <typename T> 
@@ -385,6 +386,7 @@ namespace Gadgetron{
         device_ = rhs.device_;
         this->data_ = rhs.data_;
         rhs.data_ = nullptr;
+        this->delete_data_on_destruct_ = rhs.delete_data_on_destruct_;
         return *this;
     }
 #endif

@@ -205,8 +205,8 @@ namespace Gadgetron{
         private:
 
         vector_td<REAL,D> beta;
-        NFFT_internal::NFFT_Matrix<REAL> convolution_matrix;
-        NFFT_internal::NFFT_Matrix<REAL> convolution_matrix_T;
+        std::vector<NFFT_internal::NFFT_Matrix<REAL>> convolution_matrix;
+        std::vector<NFFT_internal::NFFT_Matrix<REAL>> convolution_matrix_T;
 
         hoNDArray<ComplexType> deapodization_filter_IFFT;
         hoNDArray<ComplexType> deapodization_filter_FFT;

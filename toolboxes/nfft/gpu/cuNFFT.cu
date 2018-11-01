@@ -160,9 +160,7 @@ template<class REAL, unsigned int D, ConvolutionType CONV>
 void Gadgetron::cuNFFT_impl<REAL, D, CONV>::preprocess(const cuNDArray<typename reald<REAL, D>::Type>& trajectory,
                                                        NFFT_prep_mode mode) {
 
-    number_of_samples = trajectory.get_size(0);
-    number_of_frames = trajectory.get_number_of_elements() / number_of_samples;
-
+    NFFT_plan<cuNDArray,REAL,D>::preprocess(trajectory,mode);
     cuNDArray<REAL> trajectory_view (std::vector<size_t>{trajectory.get_number_of_elements()*D},(REAL*)trajectory.get_data_ptr());
 
     // Make sure that the trajectory values are within range [-1/2;1/2]
