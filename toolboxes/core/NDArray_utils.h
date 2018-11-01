@@ -3,18 +3,18 @@
 
 namespace Gadgetron {
 
-    template<class ARRAY> NDArrayViewIterator {
+    template<class ARRAY> class NDArrayViewIterator {
     public:
 
     NDArrayViewIterator(ARRAY& array,size_t dim) :  base_array(array) {
         base_dims = std::vector<size_t>();
-        base_dims.reserve(dim);
+        base_dims.reserve(dim+1);
         for (size_t i = 0; i<= dim; i++)
             base_dims.push_back(array.get_size(i));
 
         base_size = std::accumulate(base_dims.begin(), base_dims.end(), size_t(1), std::multiplies<size_t>());
         current_view = 0;
-        num_views = array.get_number_of_elements()/base_size();
+        num_views = array.get_number_of_elements()/base_size;
 
     }
 
@@ -24,6 +24,9 @@ namespace Gadgetron {
         return (*this);
     }
 
+    bool operator!=(const NDArrayViewIterator &other) {
+        return !(*this == other);
+    }
     bool operator==(const NDArrayViewIterator &other) {
         return (&other.base_array == &base_array) && (other.base_size == base_size) &&
                (other.current_view == current_view);
@@ -35,7 +38,7 @@ namespace Gadgetron {
 
 
     static NDArrayViewIterator make_end(ARRAY& array, size_t dim){
-        auto end = NDArrayViewIterator(std::forward(array),dim);
+        auto end = NDArrayViewIterator(array,dim);
         end.current_view = end.num_views;
         return end;
     }
@@ -51,19 +54,17 @@ namespace Gadgetron {
 };
 
     template<class ARRAY> struct NDArrayViewRange{
-        NDArrayViewRange(ARRAY& array, size_t dim){
-            begin_iterator = NDArrayViewIteator<ARRAY>(std::forward(array),dim);
-            end_iterator = NDArrayViewIteator<ARRAY>::make_end(std::forward(array),dim);
+        NDArrayViewRange(ARRAY& array, size_t dim) : begin_iterator(NDArrayViewIterator<ARRAY>(array,dim)), end_iterator(NDArrayViewIterator<ARRAY>::make_end(array,dim)){
         }
 
-        NDArrayViewIteator& begin(){
+        NDArrayViewIterator<ARRAY>& begin(){
             return begin_iterator;
         }
         NDArrayViewIterator<ARRAY>& end(){
             return end_iterator;
         }
-        NDArrayViewIterator begin_iterator;
-        NDArrayViewIterator end_iterator;
+        NDArrayViewIterator<ARRAY> begin_iterator;
+        NDArrayViewIterator<ARRAY> end_iterator;
     };
 
 }

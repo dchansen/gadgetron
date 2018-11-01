@@ -50,7 +50,7 @@ namespace Gadgetron {
                 } else {
                     hoNDFFT<REAL>::instance()->ifft1c(array);
                 }
-                if (do_scale) array /= std::sqrt(REAL(array.get_size(0)));
+                if (!do_scale) array *= std::sqrt(REAL(array.get_size(0)));
             }
         };
 
@@ -65,7 +65,7 @@ namespace Gadgetron {
                     hoNDFFT<REAL>::instance()->ifft2c(array);
                 }
 
-                if (do_scale) array /= std::sqrt(REAL(array.get_size(0)*array.get_size(1)));
+                if (!do_scale) array *= std::sqrt(REAL(array.get_size(0)*array.get_size(1)));
 
             }
         };
@@ -81,7 +81,7 @@ namespace Gadgetron {
                     hoNDFFT<REAL>::instance()->ifft3c(array);
                 }
 
-                if (do_scale) array /= std::sqrt(REAL(array.get_size(0)*array.get_size(1)*array.get_size(2)));
+                if (!do_scale) array *= std::sqrt(REAL(array.get_size(0)*array.get_size(1)*array.get_size(2)));
             }
         };
 
@@ -339,18 +339,18 @@ namespace Gadgetron {
             hoNDArray<ComplexType> &non_cartesian, bool accumulate
     ) {
 
-        size_t nbatches = cartesian.get_number_of_elements()/convolution_matrix.n_rows;
-        assert(nbatches == non_cartesian.get_number_of_elements()/convolution_matrix.n_cols);
+        size_t nbatches = cartesian.get_number_of_elements()/convolution_matrix.front().n_rows;
+        assert(nbatches == non_cartesian.get_number_of_elements()/convolution_matrix.front().n_cols);
 
         if (!accumulate) clear(&non_cartesian);
 
 #pragma omp parallel for
         for (size_t b = 0; b < nbatches; b++) {
 
-            const ComplexType* cartesian_view = cartesian.get_data_ptr()+b*convolution_matrix.n_rows;
-            ComplexType* non_cartesian_view = non_cartesian.get_data_ptr()+b*convolution_matrix.n_cols;
-
-            matrix_vector_multiply(convolution_matrix,(complext<REAL>*)cartesian_view,(complext<REAL>*)non_cartesian_view);
+            const ComplexType* cartesian_view = cartesian.get_data_ptr()+b*convolution_matrix.front().n_rows;
+            ComplexType* non_cartesian_view = non_cartesian.get_data_ptr()+b*convolution_matrix.front().n_cols;
+            size_t matrix_index = b%convolution_matrix.size();
+            matrix_vector_multiply(convolution_matrix[matrix_index],(complext<REAL>*)cartesian_view,(complext<REAL>*)non_cartesian_view);
         }
 
     }
@@ -360,17 +360,17 @@ namespace Gadgetron {
             const hoNDArray<ComplexType> &non_cartesian,
             hoNDArray<ComplexType> &cartesian, bool accumulate
     ) {
-                size_t nbatches = cartesian.get_number_of_elements()/convolution_matrix.n_rows;
-        assert(nbatches == non_cartesian.get_number_of_elements()/convolution_matrix.n_cols);
+                size_t nbatches = cartesian.get_number_of_elements()/convolution_matrix.front().n_rows;
+        assert(nbatches == non_cartesian.get_number_of_elements()/convolution_matrix.front().n_cols);
         GadgetronTimer timer("Convolution");
         if (!accumulate) clear(&cartesian);
 #pragma omp parallel for
         for (size_t b = 0; b < nbatches; b++) {
 
-            ComplexType *cartesian_view = cartesian.get_data_ptr() + b * convolution_matrix.n_rows;
-            const ComplexType *non_cartesian_view = non_cartesian.get_data_ptr() + b * convolution_matrix.n_cols;
-
-            matrix_vector_multiply(convolution_matrix_T, (complext<REAL>*)non_cartesian_view, (complext<REAL>*)cartesian_view);
+            ComplexType *cartesian_view = cartesian.get_data_ptr() + b * convolution_matrix.front().n_rows;
+            const ComplexType *non_cartesian_view = non_cartesian.get_data_ptr() + b * convolution_matrix.front().n_cols;
+            size_t matrix_index = b%convolution_matrix.size();
+            matrix_vector_multiply(convolution_matrix_T[matrix_index], (complext<REAL>*)non_cartesian_view, (complext<REAL>*)cartesian_view);
 
         }
     }
