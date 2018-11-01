@@ -24,9 +24,15 @@ namespace Gadgetron {
     }
 
     template<template<class> class ARRAY, class REAL, unsigned int D>
-    void NFFT_plan<ARRAY, REAL, D>::mult_MH_M(const ARRAY<complext<REAL>>& in, ARRAY<complext<REAL>>& out) {
-        auto dims = to_std_vector(this->matrix_size_os)
-        ARRAY<complext<REAL>> tmp();
+    void NFFT_plan<ARRAY, REAL, D>::preprocess(const ARRAY<vector_td<REAL,D>> &trajectory, NFFT_prep_mode mode) {
+        number_of_samples = trajectory.get_size(0);
+        number_of_frames = trajectory.get_number_of_elements()/number_of_samples;
+
+    }
+
+    template<template<class> class ARRAY, class REAL, unsigned int D>
+    void NFFT_plan<ARRAY, REAL, D>::mult_MH_M(const ARRAY<complext<REAL>>& in, ARRAY<complext<REAL>>& out, const ARRAY<REAL>* dcw) {
+        ARRAY<complext<REAL>> tmp;
         compute(in, tmp, dcw, NFFT_comp_mode::BACKWARDS_NC2C);
         compute(tmp, out,dcw, NFFT_comp_mode::FORWARDS_C2NC);
 

@@ -60,8 +60,8 @@ namespace Gadgetron {
            \param trajectory the NFFT non-Cartesian trajectory normalized to the range [-1/2;1/2].
            \param mode enum class specifying the preprocessing mode
         */
-        virtual void preprocess(const ARRAY<typename reald<REAL, D>::Type> &trajectory,
-                                NFFT_prep_mode mode = NFFT_prep_mode::ALL) = 0;
+        virtual void preprocess(const ARRAY<vector_td<REAL,D>> &trajectory,
+                                NFFT_prep_mode mode = NFFT_prep_mode::ALL) ;
 
 
         /**
@@ -163,6 +163,8 @@ namespace Gadgetron {
 
         typename uint64d<D>::Type matrix_size;          // Matrix size
         typename uint64d<D>::Type matrix_size_os;       // Oversampled matrix size
+        size_t number_of_samples;
+        size_t number_of_frames;
         REAL W;
 
 

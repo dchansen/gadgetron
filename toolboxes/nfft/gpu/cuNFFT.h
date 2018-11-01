@@ -167,10 +167,6 @@ namespace cuNFFT {
         typename reald<REAL, D>::Type alpha;           // Oversampling factor (for each dimension)
         typename reald<REAL, D>::Type beta;            // Kaiser-Bessel convolution kernel control parameter
 
-
-        unsigned int number_of_samples;               // Number of samples per frame per coil
-        unsigned int number_of_frames;                // Number of frames per reconstruction
-
         cuNFFT::convolverNC2C<REAL,D,CONV> convNC2C;
         cuNFFT::convolverC2NC<REAL,D,CONV> convC2NC;
         //

@@ -182,6 +182,7 @@ namespace Gadgetron {
             const hoNDArray<vector_td<REAL, D>> &trajectories, NFFT_prep_mode mode) {
 
         GadgetronTimer timer("Preprocess");
+        NFFT_plan<hoNDArray,REAL,D>::preprocess(trajectories,mode);
         auto trajectories_scaled = trajectories;
         auto matrix_size_os_real = vector_td<REAL,D>(this->matrix_size_os);
         std::transform(trajectories_scaled.begin(),trajectories_scaled.end(),trajectories_scaled.begin(),[matrix_size_os_real](auto point){
