@@ -47,6 +47,8 @@
 #include <numeric>
 #include <driver_types.h>
 
+
+#include "NFFT.hpp"
 //using namespace std;
 using std::vector;
 using namespace thrust;
@@ -78,8 +80,8 @@ extern __shared__ char _shared_mem[];
 
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::cuNFFT_impl(typename uint64d<D>::Type matrix_size,
-                                                   typename uint64d<D>::Type matrix_size_os, REAL W, int _device) :
+Gadgetron::cuNFFT_impl<REAL, D, CONV>::cuNFFT_impl(const vector_td<size_t,D>& matrix_size,
+                                                   const  vector_td<size_t,D>& matrix_size_os, REAL W, int _device) :
                                                    NFFT_plan<cuNDArray,REAL,D>(matrix_size,matrix_size_os,W){
     // Minimal initialization
     barebones();
@@ -259,57 +261,7 @@ cuNFFT::convolverNC2C<REAL, D, ConvolutionType::STANDARD>::prepare(cuNFFT_impl<R
 
 }
 
-template<class REAL, unsigned int D, ConvolutionType CONV>
-void
-Gadgetron::cuNFFT_impl<REAL, D, CONV>::mult_MH_M(const cuNDArray <complext<REAL>>& in, cuNDArray <complext<REAL>>& out,
-                                                 const cuNDArray <REAL> *dcw ) {
-    // Validity checks
-    if (in.get_number_of_elements() != out.get_number_of_elements()) {
-        throw std::runtime_error("Error: cuNFFT_impl::mult_MH_M: in/out image sizes mismatch");
-    }
 
-    auto halfway_dims = to_std_vector(this->matrix_size_os);
-    halfway_dims.push_back(in.get_number_of_elements()/prod(this->matrix_size_os));
-    cuNDArray <complext<REAL>> working_samples(halfway_dims);
-
-    check_consistency(&working_samples, &in, dcw);
-
-
-    typename uint64d<D>::Type image_dims = from_std_vector<size_t, D>(*in.get_dimensions());
-    bool oversampled_image = (image_dims == this->matrix_size_os);
-
-    vector<size_t> vec_dims = to_std_vector(this->matrix_size_os);
-    for (unsigned int d = D; d < in.get_number_of_dimensions(); d++)
-        vec_dims.push_back(in.get_size(d));
-
-    if (!oversampled_image) {
-        auto working_image = cuNDArray <complext<REAL>>(&vec_dims);
-        pad < complext < REAL > , D > (in, working_image);
-        compute_NFFT_C2NC(working_image, working_samples);
-    } else {
-        auto working_image = in;
-        compute_NFFT_C2NC(working_image, working_samples);
-    }
-
-
-    // Density compensation
-    if (dcw) {
-        working_samples *= *dcw;
-        working_samples *= *dcw;
-    }
-
-
-    if (!oversampled_image) {
-        auto working_image = cuNDArray<complext<REAL>>(&vec_dims);
-        compute_NFFTH_NC2C(working_samples, working_image);
-        crop < complext < REAL > , D > ((this->matrix_size_os - this->matrix_size) >> 1, working_image, out);
-
-    } else {
-        compute_NFFTH_NC2C(working_samples, out);
-    }
-
-    CHECK_FOR_CUDA_ERROR();
-}
 
 template<class REAL, unsigned int D, ConvolutionType CONV>
 void
@@ -424,26 +376,26 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::check_consistency(const cuNDArray <comple
     }
 
     if ((samples->get_number_of_elements() == 0) ||
-        (samples->get_number_of_elements() % (number_of_frames * number_of_samples))) {
+        (samples->get_number_of_elements() % (this->number_of_frames * this->number_of_samples))) {
         printf("\ncuNFFT::check_consistency() failed:\n#elements in the samples array: %ld.\n#samples from preprocessing: %d.\n#frames from preprocessing: %d.\n",
-               samples->get_number_of_elements(), number_of_samples, number_of_frames);
+               samples->get_number_of_elements(), this->number_of_samples, this->number_of_frames);
         fflush(stdout);
         throw std::runtime_error(
                 "Error: cuNFFT_impl: The number of samples is not a multiple of #samples/frame x #frames as requested through preprocessing");
     }
 
     unsigned int num_batches_in_samples_array =
-            samples->get_number_of_elements() / (number_of_frames * number_of_samples);
+            samples->get_number_of_elements() / (this->number_of_frames * this->number_of_samples);
     unsigned int num_batches_in_image_array = 1;
 
     for (unsigned int d = D; d < image->get_number_of_dimensions(); d++) {
         num_batches_in_image_array *= image->get_size(d);
     }
-    num_batches_in_image_array /= number_of_frames;
+    num_batches_in_image_array /= this->number_of_frames;
 
     if (num_batches_in_samples_array != num_batches_in_image_array) {
         printf("\ncuNFFT::check_consistency() failed:\n#elements in the samples array: %ld.\n#samples from preprocessing: %d.\n#frames from preprocessing: %d.\nLeading to %d batches in the samples array.\nThe number of batches in the image array is %d.\n",
-               samples->get_number_of_elements(), number_of_samples, number_of_frames, num_batches_in_samples_array,
+               samples->get_number_of_elements(), this->number_of_samples, this->number_of_frames, num_batches_in_samples_array,
                num_batches_in_image_array);
         fflush(stdout);
         throw std::runtime_error("Error: cuNFFT_impl: Number of batches mismatch between samples and image arrays");
@@ -466,11 +418,6 @@ template<class REAL, unsigned int D, ConvolutionType CONV>
 void Gadgetron::cuNFFT_impl<REAL, D, CONV>::barebones() {
     // These are the fundamental booleans checked before accessing the various member pointers
     preprocessed_C2NC = preprocessed_NC2C = false;
-
-    // Clear matrix sizes
-    clear(this->matrix_size);
-    clear(this->matrix_size_os);
-
     // and specify the this->device
     if (cudaGetDevice(&this->device) != cudaSuccess) {
         throw cuda_error("Error: cuNFFT_impl::barebones:: unable to get this->device no");
@@ -946,12 +893,12 @@ Gadgetron::cuNFFT_impl<REAL, D, CONV>::image_wrap(cuNDArray <complext<REAL>> *so
     unsigned int num_batches = 1;
     for (unsigned int d = D; d < source->get_number_of_dimensions(); d++)
         num_batches *= source->get_size(d);
-    num_batches /= number_of_frames;
+    num_batches /= this->number_of_frames;
 
     // Set dimensions of grid/blocks.
     unsigned int bdim = 256;
     dim3 dimBlock(bdim);
-    dim3 dimGrid(prod(this->matrix_size_os) / bdim, number_of_frames * num_batches);
+    dim3 dimGrid(prod(this->matrix_size_os) / bdim, this->number_of_frames * num_batches);
 
     // Safety check
     if ((prod(this->matrix_size_os) % bdim) != 0) {

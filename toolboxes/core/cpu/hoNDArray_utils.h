@@ -353,25 +353,18 @@ namespace Gadgetron {
   }
 
   /**
-  * @param[in] crop_size Size of cropped array
+  * @param[in] crop_offset
   * @param[in] in input array
   * @param[out] out Output array after cropping
 
   * Crop the input array around its center N/2; that is, the center pixel of in array is the center pixel of out array
   */
   template<class T, unsigned int D> void
-  crop(const vector_td<size_t, D>& crop_size, const hoNDArray<T>& in, hoNDArray<T>& out)
+  crop(const vector_td<size_t, D>& crop_offset, const hoNDArray<T>& in, hoNDArray<T>& out)
   {
     // compute crop offset, perserving the center
 
-    vector_td<size_t, D> crop_offset;
-
-    unsigned int d;
-    for (d = 0; d < D; d++)
-    {
-        crop_offset[d] = in.get_size(d) / 2 - crop_size[d] / 2;
-    }
-
+    auto crop_size = from_std_vector<size_t,D>(*out.get_dimensions());
     crop(crop_offset, crop_size, in, out);
   }
 

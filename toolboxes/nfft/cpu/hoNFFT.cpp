@@ -246,7 +246,11 @@ namespace Gadgetron {
             hoNDArray<ComplexType> &out,
             const hoNDArray<REAL>* dcw
     ) {
-        hoNDArray<ComplexType> tmp(to_std_vector(this->matrix_size_os));
+        std::vector<size_t> dims = {this->number_of_samples,this->number_of_frames};
+        auto batches = in.get_number_of_elements()/(prod(this->matrix_size_os)*this->number_of_frames);
+        dims.push_back(batches);
+
+        hoNDArray<ComplexType> tmp(dims);
         compute(in, tmp, dcw, NFFT_comp_mode::BACKWARDS_NC2C);
         compute(tmp, out,dcw, NFFT_comp_mode::FORWARDS_C2NC);
     }

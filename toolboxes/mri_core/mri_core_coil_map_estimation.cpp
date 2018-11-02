@@ -53,7 +53,7 @@ void coil_map_2d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
 
         long long e1;
 
-//        #pragma omp parallel private(e1) shared(ks, RO, E1, CHA, pSen, pData, halfKs, power, kss)
+        #pragma omp parallel private(e1) shared(ks, RO, E1, CHA, pSen, pData, halfKs, power, kss)
         {
             hoNDArray<T> D(ks*ks, CHA);
             T* pD = D.begin();
@@ -86,7 +86,7 @@ void coil_map_2d_Inati(const hoNDArray<T>& data, hoNDArray<T>& coilMap, size_t k
             long long cha, ro, kro, ke1, de1, dro;
             size_t po;
 
-//            #pragma omp for
+            #pragma omp for
             for (e1 = 0; e1<(int)E1; e1++)
             {
                 for (ro = 0; ro<(long long)RO; ro++)
@@ -870,7 +870,7 @@ namespace {
     template<class REAL> struct coil_algorithm_wrapper<REAL,2> {
         static hoNDArray<complext<REAL>> estimate_b1_map(const hoNDArray<complext<REAL>>& data){
             hoNDArray<float_complext> output(data.get_dimensions());
-            coil_map_2d_Inati_Iter(data,output);
+            coil_map_2d_Inati(data,output);
             return output;
         }
     };
@@ -886,6 +886,7 @@ namespace {
 
 template<class REAL, unsigned int D>
 hoNDArray<complext<REAL>> estimate_b1_map(const hoNDArray<complext<REAL>>& data) {
+    GadgetronTimer timer("Estimate_b1_map");
     return std::move(coil_algorithm_wrapper<REAL,D>::estimate_b1_map(data));
 }
 

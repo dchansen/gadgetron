@@ -84,7 +84,7 @@ namespace cuNFFT {
            \param device the device (GPU id) to use for the NFFT computation.
            The default value of -1 indicates that the currently active device is used.
         */
-        cuNFFT_impl(typename uint64d<D>::Type matrix_size, typename uint64d<D>::Type matrix_size_os,
+        cuNFFT_impl(const vector_td<size_t,D>& matrix_size, const vector_td<size_t,D>& matrix_size_os,
                     REAL W, int device = -1);
 
         /**
