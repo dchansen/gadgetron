@@ -376,6 +376,7 @@ if (BUILD_PYTHON_SUPPORT)
 
   option(BUILD_WITH_PYTHON3 "Build with Python 3.x" Off)
 
+
   if (BUILD_WITH_PYTHON3)
     find_package(Python3)
   else()
