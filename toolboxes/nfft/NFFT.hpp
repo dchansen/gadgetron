@@ -88,7 +88,7 @@ void NFFT_plan<ARRAY,REAL,D>::compute(const ARRAY<complext<REAL>>& in, ARRAY<com
                 auto working_image = ARRAY<complext<REAL >> (&vec_dims);
                 compute_NFFT_NC2C(working_samples, working_image);
                 crop<complext<REAL > , D >
-                                           ((this->matrix_size_os - this->matrix_size) >> 1, working_image, out);
+                                           ((this->matrix_size_os - this->matrix_size) >> 1,this->matrix_size, working_image, out);
             } else {
                 compute_NFFT_NC2C(working_samples, out);
             }
@@ -110,7 +110,7 @@ void NFFT_plan<ARRAY,REAL,D>::compute(const ARRAY<complext<REAL>>& in, ARRAY<com
             if (!oversampled_image) {
                 auto working_image = ARRAY<complext<REAL>>(&vec_dims);
                 compute_NFFTH_NC2C(*working_samples, working_image);
-                crop<complext<REAL >,D>((this->matrix_size_os - this->matrix_size) >> 1, working_image, out);
+                crop<complext<REAL >,D>((this->matrix_size_os - this->matrix_size) >> 1,this->matrix_size, working_image, out);
             } else {
                 compute_NFFTH_NC2C(*working_samples, out);
             }

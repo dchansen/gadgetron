@@ -210,7 +210,8 @@ namespace Gadgetron{
 
     virtual void operator_crop( COMPLEX_ARRAY_TYPE *in, COMPLEX_ARRAY_TYPE *out ){
       typename uint64d<D>::Type offset = from_std_vector<size_t,D>(*(in->get_dimensions().get()))>>2;
-      crop<ELEMENT_TYPE,D>( offset, *in, *out );
+       typename uint64d<D>::Type size = from_std_vector<size_t,D>(*(out->get_dimensions().get()))>>2;
+      crop<ELEMENT_TYPE,D>( offset,size, *in, *out );
     }
     
   private:

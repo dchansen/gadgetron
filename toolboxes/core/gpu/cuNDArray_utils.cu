@@ -227,18 +227,15 @@ namespace {
 
   // Crop
   template<class T, unsigned int D>
-  void crop( const vector_td<size_t,D>& offset, const cuNDArray<T>& in, cuNDArray<T>&out )
+  void crop( const vector_td<size_t,D>& offset, const vector_td<size_t,D>& crop_size, const cuNDArray<T>& in, cuNDArray<T>&out )
   {
+    auto out_dims = to_std_vector(crop_size);
+    for (int i = D; i < in.get_number_of_dimensions(); i++)
+      out_dims.push_back(in.get_size(i));
 
-    if( in.get_number_of_dimensions() != out.get_number_of_dimensions() ){
-      throw std::runtime_error("crop: image dimensions mismatch");
-    }
+    if (!out.dimensions_equal(out_dims))
+      out.create(out_dims);
 
-    if( in.get_number_of_dimensions() < D ){
-      std::stringstream ss;
-      ss << "crop: number of image dimensions should be at least " << D;
-      throw std::runtime_error(ss.str());
-    }
 
     typename uint64d<D>::Type matrix_size_in = from_std_vector<size_t,D>( *in.get_dimensions() );
     typename uint64d<D>::Type matrix_size_out = from_std_vector<size_t,D>( *out.get_dimensions() );
@@ -267,13 +264,8 @@ namespace {
   template<class T, unsigned int D> cuNDArray<T>
   crop<T,D>( const vector_td<size_t,D>& offset, const vector_td<size_t,D>& size, const cuNDArray<T>& in )
   {
-    std::vector<size_t> dims = to_std_vector(size);
-    for( unsigned int d=D; d<in.get_number_of_dimensions(); d++ ){
-      dims.push_back(in.get_size(d));
-    }
-
-    cuNDArray<T>  result(dims);
-    crop<T,D>(offset, in, result);
+    cuNDArray<T>  result;
+    crop<T,D>(offset,size, in, result);
     return result;
   }  
 
@@ -666,15 +658,15 @@ namespace {
   template EXPORTGPUCORE  cuNDArray<float_complext > crop<float_complext,3>( const typename uint64d<3>::Type&, const typename uint64d<3>::Type&, const cuNDArray<float_complext>&);
   template EXPORTGPUCORE  cuNDArray<float_complext > crop<float_complext,4>( const typename uint64d<4>::Type&, const typename uint64d<4>::Type&, const cuNDArray<float_complext>&);
 
-  template EXPORTGPUCORE void crop<float,1>( const vector_td<size_t,1>&, const cuNDArray<float>&, cuNDArray<float>&);
-  template EXPORTGPUCORE void crop<float,2>( const vector_td<size_t,2>&, const cuNDArray<float>&, cuNDArray<float>&);
-  template EXPORTGPUCORE void crop<float,3>( const vector_td<size_t,3>&, const cuNDArray<float>&, cuNDArray<float>&);
-  template EXPORTGPUCORE void crop<float,4>( const vector_td<size_t,4>&, const cuNDArray<float>&, cuNDArray<float>&);
+  template EXPORTGPUCORE void crop<float,1>( const vector_td<size_t,1>&, const vector_td<size_t,1>&, const cuNDArray<float>&, cuNDArray<float>&);
+  template EXPORTGPUCORE void crop<float,2>( const vector_td<size_t,2>&, const vector_td<size_t,2>&, const cuNDArray<float>&, cuNDArray<float>&);
+  template EXPORTGPUCORE void crop<float,3>( const vector_td<size_t,3>&, const vector_td<size_t,3>&, const cuNDArray<float>&, cuNDArray<float>&);
+  template EXPORTGPUCORE void crop<float,4>( const vector_td<size_t,4>&, const vector_td<size_t,4>&, const cuNDArray<float>&, cuNDArray<float>&);
 
-  template EXPORTGPUCORE void crop<complext<float>,1>( const uint64d1&, const cuNDArray<complext<float> >&, cuNDArray< complext<float> >&);
-  template EXPORTGPUCORE void crop<complext<float>,2>( const uint64d2&, const cuNDArray<complext<float> >&, cuNDArray< complext<float> >&);
-  template EXPORTGPUCORE void crop<complext<float>,3>( const uint64d3&, const cuNDArray<complext<float> >&, cuNDArray< complext<float> >&);
-  template EXPORTGPUCORE void crop<complext<float>,4>( const uint64d4&, const cuNDArray<complext<float> >&, cuNDArray< complext<float> >&);
+  template EXPORTGPUCORE void crop<complext<float>,1>( const uint64d1&, const uint64d1&, const cuNDArray<complext<float> >&, cuNDArray< complext<float> >&);
+  template EXPORTGPUCORE void crop<complext<float>,2>( const uint64d2&, const uint64d2&, const cuNDArray<complext<float> >&, cuNDArray< complext<float> >&);
+  template EXPORTGPUCORE void crop<complext<float>,3>( const uint64d3&, const uint64d3&, const cuNDArray<complext<float> >&, cuNDArray< complext<float> >&);
+  template EXPORTGPUCORE void crop<complext<float>,4>( const uint64d4&, const uint64d4&, const cuNDArray<complext<float> >&, cuNDArray< complext<float> >&);
 
   template EXPORTGPUCORE  cuNDArray<float > pad<float,1>( const uint64d1&, const cuNDArray<float>&, float );
   template EXPORTGPUCORE  cuNDArray<float > pad<float,2>( const uint64d2&, const cuNDArray<float>&, float );
@@ -726,15 +718,15 @@ namespace {
   template EXPORTGPUCORE  cuNDArray<double_complext > crop<double_complext,3>(const vector_td<size_t,3>&, const vector_td<size_t,3>&, const cuNDArray<double_complext>&);
   template EXPORTGPUCORE  cuNDArray<double_complext > crop<double_complext,4>(const vector_td<size_t,4>&, const vector_td<size_t,4>&, const cuNDArray<double_complext>&);
 
-  template EXPORTGPUCORE void crop<double,1>(const uint64d1&, const cuNDArray<double>&, cuNDArray<double>&);
-  template EXPORTGPUCORE void crop<double,2>(const uint64d2&, const cuNDArray<double>&, cuNDArray<double>&);
-  template EXPORTGPUCORE void crop<double,3>(const uint64d3&, const cuNDArray<double>&, cuNDArray<double>&);
-  template EXPORTGPUCORE void crop<double,4>(const uint64d4&, const cuNDArray<double>&, cuNDArray<double>&);
+  template EXPORTGPUCORE void crop<double,1>(const uint64d1&, const uint64d1&, const cuNDArray<double>&, cuNDArray<double>&);
+  template EXPORTGPUCORE void crop<double,2>(const uint64d2&, const uint64d2&, const cuNDArray<double>&, cuNDArray<double>&);
+  template EXPORTGPUCORE void crop<double,3>(const uint64d3&, const uint64d3&, const cuNDArray<double>&, cuNDArray<double>&);
+  template EXPORTGPUCORE void crop<double,4>(const uint64d4&, const uint64d4&, const cuNDArray<double>&, cuNDArray<double>&);
 
-  template EXPORTGPUCORE void crop<complext<double>,1>(const uint64d1&, const cuNDArray<complext<double> >&, cuNDArray< complext<double> >&);
-  template EXPORTGPUCORE void crop<complext<double>,2>(const uint64d2&, const cuNDArray<complext<double> >&, cuNDArray< complext<double> >&);
-  template EXPORTGPUCORE void crop<complext<double>,3>(const uint64d3&, const cuNDArray<complext<double> >&, cuNDArray< complext<double> >&);
-  template EXPORTGPUCORE void crop<complext<double>,4>(const uint64d4&, const cuNDArray<complext<double> >&, cuNDArray< complext<double> >&);
+  template EXPORTGPUCORE void crop<complext<double>,1>(const uint64d1&, const uint64d1&, const cuNDArray<complext<double> >&, cuNDArray< complext<double> >&);
+  template EXPORTGPUCORE void crop<complext<double>,2>(const uint64d2&, const uint64d2&, const cuNDArray<complext<double> >&, cuNDArray< complext<double> >&);
+  template EXPORTGPUCORE void crop<complext<double>,3>(const uint64d3&, const uint64d3&, const cuNDArray<complext<double> >&, cuNDArray< complext<double> >&);
+  template EXPORTGPUCORE void crop<complext<double>,4>(const uint64d4&, const uint64d4&, const cuNDArray<complext<double> >&, cuNDArray< complext<double> >&);
 
   template EXPORTGPUCORE  cuNDArray<double > pad<double,1>(const uint64d1&, const cuNDArray<double>&, double );
   template EXPORTGPUCORE  cuNDArray<double > pad<double,2>(const uint64d2&, const cuNDArray<double>&, double );

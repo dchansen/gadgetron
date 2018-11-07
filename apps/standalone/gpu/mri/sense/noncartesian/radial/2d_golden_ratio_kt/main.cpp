@@ -256,7 +256,7 @@ int main(int argc, char** argv)
     // Remove oversampling
     image_dims.push_back(num_coils);
     cuNDArray<_complext> *image = new cuNDArray<_complext>(&image_dims);
-    crop<_complext,2>( (matrix_size_os-matrix_size)>>1, *image_os, *image );
+    crop<_complext,2>( (matrix_size_os-matrix_size)>>1, matrix_size, *image_os, *image );
     image_dims.pop_back();
 
     // Compute regularization image

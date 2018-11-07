@@ -43,12 +43,12 @@ crop( const vector_td<size_t,D>& crop_offset, const vector_td<size_t,D>& crop_si
 
 /**
  * @brief Creates a cropped version of the array
- * @param[in] crop_offset Offset of the corner of the crop size
+ * @param[in] crop_size Size of the cropped region
  * @param[in] in Array to crop
  * @param[out] out Array into which the cropped array is placed
  */
 template<class T, unsigned int D> EXPORTGPUCORE
-void crop( const vector_td<size_t,D>& crop_offset, const cuNDArray<T>& in, cuNDArray<T>& out );
+void crop( const vector_td<size_t,D>& crop_offset, const vector_td<size_t,D>& crop_size, const cuNDArray<T>& in, cuNDArray<T>& out );
 
 /**
  * @brief Creates a padded version of the array

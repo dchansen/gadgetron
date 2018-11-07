@@ -175,7 +175,7 @@ namespace Gadgetron{
     nfft_plan_->deapodize( acc_copy );
     
     // Remove oversampling
-    crop<_complext,D>( (matrix_size_os_-matrix_size_)>>1, acc_copy, *acc_image_ );
+    crop<_complext,D>( (matrix_size_os_-matrix_size_)>>1, matrix_size_, acc_copy, *acc_image_ );
     
     //if( normalize ){
     //REAL scale = REAL(1)/(((REAL)cycle_length_-REAL(1))*(REAL)sub_cycle_length_);

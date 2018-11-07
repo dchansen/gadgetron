@@ -172,7 +172,7 @@ namespace Gadgetron {
 
     int GenericReconFieldOfViewAdjustmentGadget::adjust_FOV(IsmrmrdImageArray& recon_res)
     {
-        try
+//        try
         {
             size_t RO = recon_res.data_.get_size(0);
             size_t E1 = recon_res.data_.get_size(1);
@@ -292,11 +292,11 @@ namespace Gadgetron {
                 }
             }
         }
-        catch (...)
-        {
-            GERROR_STREAM("Errors in GenericReconFieldOfViewAdjustmentGadget::adjust_FOV(IsmrmrdImageArray& data) ... ");
-            return GADGET_FAIL;
-        }
+//        catch (...)
+//        {
+//            GERROR_STREAM("Errors in GenericReconFieldOfViewAdjustmentGadget::adjust_FOV(IsmrmrdImageArray& data) ... ");
+//            return GADGET_FAIL;
+//        }
 
         return GADGET_OK;
     }

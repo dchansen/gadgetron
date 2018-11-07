@@ -348,7 +348,7 @@ namespace Gadgetron{
     dims.push_back(frames_per_reconstruction); 
     dims.push_back(num_coils);
     cuNDArray<float_complext> image(&dims);
-    crop<float_complext,2>( (matrix_size_os_-matrix_size_)>>1, image_os, image );
+    crop<float_complext,2>( (matrix_size_os_-matrix_size_)>>1, matrix_size_, image_os, image );
 
     // Compute regularization image
     //
