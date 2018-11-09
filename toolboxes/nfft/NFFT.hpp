@@ -40,7 +40,7 @@ namespace Gadgetron {
 
     }
 
-    template<template<class> class ARRAY, class REAL, unsigned int
+    template<template<class> class ARRAY, class REAL, unsigned int D>
 void NFFT_plan<ARRAY,REAL,D>::compute(const ARRAY<complext<REAL>>& in, ARRAY<complext<REAL>>&out,
         const ARRAY<REAL> *dcw, NFFT_comp_mode mode){
 
