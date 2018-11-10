@@ -167,9 +167,9 @@ void NFFT_plan<ARRAY, REAL, D>::compute_NFFTH_NC2C(const ARRAY<complext<REAL>>& 
 template<template<class> class ARRAY, class REAL, unsigned int D>
 void NFFT_plan<ARRAY, REAL, D>::compute_NFFTH_C2NC(ARRAY<complext<REAL>>& image, ARRAY<complext<REAL>>& samples) {
 
-    convolve(samples, image, NFFT_conv_mode::NC2C);
-    fft(image, NFFT_fft_mode::FORWARDS);
     deapodize(image, true);
+    convolve(samples, image, NFFT_conv_mode::NC2C);
+    fft(image, NFFT_fft_mode::BACKWARDS);
 }
 
 
