@@ -330,7 +330,7 @@ namespace Gadgetron{
     template<class T>
     inline bool NDArray<T>::empty() const
     {
-        return elements_ > 0;
+        return elements_ == 0;
     }
 
     template <class T>
