@@ -72,3 +72,11 @@ TEST(hoNDArrayView,copy4){
     x(slice,3,2) = z;
     ASSERT_EQ(asum(x),asum(y)*3);
 }
+
+
+TEST(hoNDArrayView,assignment){
+    hoNDArray<float> x(2,4,3);
+    std::fill(x.begin(),x.end(),0.0f);
+    
+
+}

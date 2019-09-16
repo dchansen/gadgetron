@@ -83,6 +83,7 @@ namespace Gadgetron{
         T* data();
 
         size_t size() const;
+        bool empty() const;
         size_t get_number_of_elements() const;
 
         size_t get_number_of_bytes() const;
@@ -324,6 +325,12 @@ namespace Gadgetron{
     inline size_t NDArray<T>::size() const
     {
         return elements_;
+    }
+
+    template<class T>
+    inline bool NDArray<T>::empty() const
+    {
+        return elements_ == 0;
     }
 
     template <class T>

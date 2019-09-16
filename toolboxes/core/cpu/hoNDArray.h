@@ -42,6 +42,10 @@ namespace Gadgetron{
         template<class... INDICES>
        std::enable_if_t<Core::all_of_v<Core::is_convertible_v<INDICES,size_t>...> && (sizeof...(INDICES) == D),T&>
        operator()(INDICES... indices);
+
+       template<class... INDICES>
+       std::enable_if_t<Core::all_of_v<Core::is_convertible_v<INDICES,size_t>...> && (sizeof...(INDICES) == D),const T&>
+       operator()(INDICES... indices) const;
    private:
        friend class hoNDArray<T>;
        hoNDArrayView(const std::array<size_t,D>& strides, const std::array<size_t,D>& dimensions, T*);
