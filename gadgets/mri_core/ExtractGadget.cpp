@@ -32,6 +32,8 @@ namespace Gadgetron {
             {IMTYPE::ISMRMRD_IMTYPE_REAL,1000},
             {IMTYPE::ISMRMRD_IMTYPE_IMAG,2000},
             {IMTYPE::ISMRMRD_IMTYPE_PHASE,3000}};
+
+        constexpr std::array<IMTYPE,4> legacy_offsets = {IMTYPE::ISMRMRD_IMTYPE_MAGNITUDE,IMTYPE::ISMRMRD_IMTYPE_REAL, IMTYPE::ISMRMRD_IMTYPE_IMAG, IMTYPE::ISMRMRD_IMTYPE_PHASE};
     }
 
     ExtractGadget::ExtractGadget() {
@@ -48,8 +50,8 @@ namespace Gadgetron {
 
         if (int(extract_mask) > 0){
             const auto bitmask = std::bitset<4>(int(extract_mask));
-            for (int imtype = IMTYPE::ISMRMRD_IMTYPE_MAGNITUDE; imtype <= IMTYPE::ISMRMRD_IMTYPE_PHASE; imtype++){
-                if (bitmask[imtype-1]) image_types.push_back(IMTYPE(imtype));
+            for (size_t i = 0; i < legacy_offsets.size(); i++){
+                if (bitmask[i]) image_types.push_back(legacy_offsets[i]);
             }
         } else {
             if (extract_magnitude) image_types.push_back(IMTYPE::ISMRMRD_IMTYPE_MAGNITUDE);
