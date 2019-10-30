@@ -34,7 +34,7 @@ steps:
     sudo make install
   displayName: 'Build ISMRMRD'
 
-- script: python3 -m pip install ismrmrd
+- script: sudo python3 -m pip install ismrmrd
   displayName: 'Install Python ISMRMRD'
 
 - script: |
