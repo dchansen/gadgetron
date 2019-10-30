@@ -58,3 +58,6 @@ steps:
     ninja
     sudo ninja install
   displayName: 'Build Gadgetron'
+- script: |
+    cd build/test/
+    ./test_all
