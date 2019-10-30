@@ -7,7 +7,7 @@ trigger:
 - master
 
 pool:
-  vmImage: 'gadgetron/ubuntu_1804_base'
+  vmImage: 'ubuntu-18.04'
 
 steps:
 - script: |
