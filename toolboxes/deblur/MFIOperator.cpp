@@ -1,11 +1,11 @@
 #include "MFIOperator.h"
-#include "hoNDArray_utils.h"
-#include "cuNDArray_utils.h"
-#include "hoArmadillo.h"
+#include "b1_map.h"
 #include "cuNDArray_elemwise.h"
 #include "cuNDArray_operators.h"
-#include "sense_utilities.h"
-#include "b1_map.h"
+#include "cuNDArray_utils.h"
+#include "gpu_sense_utilities.h"
+#include "hoArmadillo.h"
+#include "hoNDArray_utils.h"
 
 namespace Gadgetron{
 

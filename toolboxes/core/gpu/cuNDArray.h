@@ -91,7 +91,7 @@ namespace Gadgetron{
         virtual void to_host( hoNDArray<T> *out ) const;
 
         virtual void set_device(int device);
-        int get_device();
+        int get_device() const;
 
         thrust::device_ptr<T> get_device_ptr();
         const thrust::device_ptr<T> get_device_ptr() const;
@@ -746,7 +746,7 @@ namespace Gadgetron{
     }
 
     template <typename T> 
-    inline int cuNDArray<T>::get_device() { return device_; }
+    inline int cuNDArray<T>::get_device() const { return device_; }
 
     template <typename T> 
     inline thrust::device_ptr<T> cuNDArray<T>::get_device_ptr()

@@ -21,13 +21,12 @@ cuda_add_library(gadgetron_toolbox_gpuparallelmri SHARED
     cuSenseOperator.h
     gpupmri_export.h
     htgrappa.h
-    senseOperator.h
-    sense_utilities.h
+        ../senseOperator.h
+		gpu_sense_utilities.h
     b1_map.cu
     b1_map_NIH_Souheil.cu
     spirit_calibration.cu
-    sense_utilities.cu
-    cuSenseOperator.cu
+		gpu_sense_utilities.cu
     cuCartesianSenseOperator.cu
     cuNonCartesianSenseOperator.cu
     cuNonCartesianKtSenseOperator.cu
@@ -67,9 +66,8 @@ install(TARGETS gadgetron_toolbox_gpuparallelmri
 
 install(FILES 
 	b1_map.h
-	sense_utilities.h
 	htgrappa.h
-	senseOperator.h
+        ../senseOperator.h
 	cuSenseOperator.h
 	cuCartesianSenseOperator.h
 	cuNonCartesianSenseOperator.h

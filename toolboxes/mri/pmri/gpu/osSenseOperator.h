@@ -6,18 +6,18 @@
  */
 
 #pragma once
+#include "gpu_sense_utilities.h"
 #include "subsetOperator.h"
-#include <boost/shared_ptr.hpp>
 #include <boost/make_shared.hpp>
-#include "sense_utilities.h"
+#include <boost/shared_ptr.hpp>
 namespace Gadgetron {
 
 template<class ARRAY, unsigned int D, class FFTOperator> class osSenseOperator: public virtual Gadgetron::subsetOperator<ARRAY>, public virtual FFTOperator {
 public:
 	osSenseOperator(): coils_per_subset(1){};
 	virtual ~osSenseOperator(){};
-	typedef typename ARRAY::element_type ELEMENT_TYPE;
-	typedef typename realType<ELEMENT_TYPE>::Type REAL;
+	using ELEMENT_TYPE = typename ARRAY::element_type;
+	using REAL = realType_t<ELEMENT_TYPE>;
 
 	virtual void set_csm(boost::shared_ptr<ARRAY> csm){
 		if (csm->get_size(csm->get_number_of_dimensions()-1)%coils_per_subset != 0)
@@ -44,7 +44,7 @@ public:
 		auto in_dims = *in->get_dimensions();
 		in_dims.push_back(coils_per_subset);
 		ARRAY tmp(in_dims);
-		csm_mult_M<REAL,D>(in,&tmp,&sub_csm);
+		Sense::csm_mult_M<REAL,D>(*in,tmp,sub_csm);
 		FFTOperator::mult_M(&tmp,out,accumulate);
 	}
 
@@ -76,7 +76,7 @@ public:
 
 		FFTOperator::mult_MH(in,&tmp,accumulate);
 
-		csm_mult_MH<REAL,D>(&tmp,out,&sub_csm);
+		Sense::csm_mult_MH<REAL,D>(tmp,*out,sub_csm);
 
 	}
 

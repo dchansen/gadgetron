@@ -11,23 +11,23 @@ Input: Image data and B0 field map attached as reference
  - B0 map
 */
 #include "gpuSpiralDeblurGadget.h"
+#include "GPUTimer.h"
 #include "GenericReconJob.h"
-#include "cuNDArray_utils.h"
-#include "hoNDArray_utils.h"
+#include "b1_map.h"
+#include "check_CUDA.h"
 #include "cuNDArray_elemwise.h"
-#include "cuNDArray_reductions.h"
-#include "vector_td_utilities.h"
-#include "hoNDArray_fileio.h"
 #include "cuNDArray_fileio.h"
+#include "cuNDArray_reductions.h"
+#include "cuNDArray_utils.h"
+#include "gpu_sense_utilities.h"
+#include "hoArmadillo.h"
+#include "hoNDArray_fileio.h"
+#include "hoNDArray_utils.h"
+#include "ismrmrd/xml.h"
+#include "vds.h"
 #include "vector_td.h"
 #include "vector_td_operators.h"
-#include "sense_utilities.h"
-#include "check_CUDA.h"
-#include "b1_map.h"
-#include "hoArmadillo.h"
-#include "GPUTimer.h"
-#include "vds.h"
-#include "ismrmrd/xml.h"
+#include "vector_td_utilities.h"
 #include <algorithm>
 #include <vector>
 
@@ -230,7 +230,7 @@ typedef cuNFFT_impl<_real,2> plan_type;
 			cuNDArray<complext<float>> gpu_data((hoNDArray<float_complext>*)&host_data);
 			nfft_plan_->compute( &gpu_data, image, &gpu_weights, NFFT_comp_mode::BACKWARDS_NC2C );
 			csm_ = estimate_b1_map<float,2>( &image );
-			csm_mult_MH<float,2>(&image, &reg_image, &csm_);
+			Sense::csm_mult_MH<float,2>(image, reg_image, csm_);
 			host_image = *(reg_image.to_host());
 
 			gpu_traj = host_traj;
@@ -342,12 +342,12 @@ typedef cuNFFT_impl<_real,2> plan_type;
 		cuNDArray<complext<float>> gpu_B0_data((hoNDArray<float_complext>*)B0_data_1);
 		nfft_plan_B0_->compute( &gpu_B0_data, image, &gpu_weights_B0, NFFT_comp_mode::BACKWARDS_NC2C );
 		csm_ = estimate_b1_map<float,2>( &image );
-		csm_mult_MH<float,2>(&image, &reg_image, &csm_);
+		Sense::csm_mult_MH<float,2>(image, reg_image, csm_);
 		hoNDArray<complext<float>> B0_temp_0 = *reg_image.to_host();
 		hoNDArray<std::complex<float>>* B0_data_2 = new hoNDArray<std::complex<float>>(R0,E1,E2,CHA,B0_data.get_data_ptr()+R0*E1*E2*CHA);//Start at index N = 1
 		gpu_B0_data = *((hoNDArray<float_complext>*)B0_data_2);
 		nfft_plan_B0_->compute( &gpu_B0_data, image, &gpu_weights_B0, NFFT_comp_mode::BACKWARDS_NC2C );
-		csm_mult_MH<float,2>(&image, &reg_image, &csm_);
+		Sense::csm_mult_MH<float,2>(image, reg_image, csm_);
 		hoNDArray<complext<float>> B0_temp_1 = *reg_image.to_host();
 		//Compute map
 		B0_map->clear();
