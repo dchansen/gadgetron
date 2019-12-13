@@ -4,12 +4,12 @@
 
 #pragma once
 
-#include "cuSenseOperator.h"
 #include "cuNFFT.h"
+#include "NonCartesianSenseOperator.h"
 
 namespace Gadgetron{
 
-  template<class REAL, unsigned int D> class EXPORTGPUPMRI cuNonCartesianSenseOperator : public cuSenseOperator<REAL,D>
+  template<class REAL, unsigned int D> class cuNonCartesianSenseOperator : public NonCartesianSenseOperator<cuNDArray,REAL,D>
   {
   
   public:
@@ -18,26 +18,12 @@ namespace Gadgetron{
     typedef typename reald<REAL,D>::Type _reald;
 
     cuNonCartesianSenseOperator(ConvolutionType conv = ConvolutionType::STANDARD);
-    virtual ~cuNonCartesianSenseOperator() {}
-    
-    inline boost::shared_ptr< cuNFFT_plan<REAL, D> > get_plan() { return plan_; }
-    inline boost::shared_ptr< cuNDArray<REAL> > get_dcw() { return dcw_; }
-    inline bool is_preprocessed() { return is_preprocessed_; } 
+    virtual ~cuNonCartesianSenseOperator() = default;
+    virtual void setup( _uint64d matrix_size, _uint64d matrix_size_os, REAL W ) override;
 
-    virtual void mult_M( cuNDArray< complext<REAL> >* in, cuNDArray< complext<REAL> >* out, bool accumulate = false );
-    virtual void mult_MH( cuNDArray< complext<REAL> >* in, cuNDArray< complext<REAL> >* out, bool accumulate = false );
-
-    virtual void setup( _uint64d matrix_size, _uint64d matrix_size_os, REAL W );
-    virtual void preprocess( cuNDArray<_reald> *trajectory );
-    virtual void set_dcw( boost::shared_ptr< cuNDArray<REAL> > dcw );
-
-
-  
   protected:
-    boost::shared_ptr< cuNFFT_plan<REAL, D> > plan_;
-    boost::shared_ptr< cuNDArray<REAL> > dcw_;
+
     ConvolutionType convolutionType;
-    bool is_preprocessed_;
   };
   
 }

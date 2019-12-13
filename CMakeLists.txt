@@ -364,7 +364,7 @@ message("Adding gpertools to build.")
 find_package(Gperftools REQUIRED)
 endif()
 
-add_subdirectory(test)
+#add_subdirectory(test)
 add_subdirectory(cmake)
 add_subdirectory(chroot)
 

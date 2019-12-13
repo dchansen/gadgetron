@@ -13,7 +13,7 @@ cuda_add_library(gadgetron_toolbox_gpuparallelmri SHARED
     spirit_calibration.h
     cuCartesianSenseOperator.h
     cuNonCartesianKtSenseOperator.h
-    cuNonCartesianSenseOperator.h
+		cuNonCartesianSenseOperator.h
     cuSpiritOperator.h
     cuBuffer.h
     cuSenseBuffer.h
@@ -28,7 +28,7 @@ cuda_add_library(gadgetron_toolbox_gpuparallelmri SHARED
     spirit_calibration.cu
 		gpu_sense_utilities.cu
     cuCartesianSenseOperator.cu
-    cuNonCartesianSenseOperator.cu
+		cuNonCartesianSenseOperator.cpp
     cuNonCartesianKtSenseOperator.cu
     cuBuffer.cpp
     cuSenseBuffer.cpp
@@ -49,6 +49,7 @@ target_link_libraries(gadgetron_toolbox_gpuparallelmri
   gadgetron_toolbox_gpunfft 
   gadgetron_toolbox_cpucore
   gadgetron_toolbox_cpucore_math
+		gadgetron_toolbox_pmri
   )
 
 
@@ -70,7 +71,7 @@ install(FILES
         ../senseOperator.h
 	cuSenseOperator.h
 	cuCartesianSenseOperator.h
-	cuNonCartesianSenseOperator.h
+		hoNonCartesianSenseOperator.h
 	cuNonCartesianKtSenseOperator.h
         cuSpiritOperator.h
         cuBuffer.h

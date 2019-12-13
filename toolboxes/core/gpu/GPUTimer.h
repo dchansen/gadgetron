@@ -10,6 +10,7 @@
 #include <iostream>
 #include <string>
 #include <cuda_runtime_api.h>
+#include "log.h"
 
 namespace Gadgetron{
 

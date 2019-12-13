@@ -5,7 +5,6 @@
 #pragma once
 
 #include "linearOperator.h"
-#include "gpupmri_export.h"
 
 #include <boost/shared_ptr.hpp>
 #include <iostream>

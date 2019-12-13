@@ -45,7 +45,7 @@ namespace Gadgetron{
 	tmp = new ARRAY_TYPE(out->get_dimensions());
       }
       mult_MH_M(in,tmp,false);
-      *tmp *= this->weight_;
+      *tmp *= ELEMENT_TYPE(this->weight_);
       if (accumulate){
 	*out += *tmp;
 	delete tmp;
