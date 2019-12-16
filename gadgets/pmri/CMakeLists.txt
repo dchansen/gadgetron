@@ -5,6 +5,28 @@ if (WIN32)
   set (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /FORCE:MULTIPLE") 
 endif ()
 
+#
+#add_library(gadgetron_parallelmri SHARED NonCartesianSenseGadget.h)
+#
+#
+#set_target_properties(gadgetron_parallelmri PROPERTIES VERSION ${GADGETRON_VERSION_STRING} SOVERSION ${GADGETRON_SOVERSION})
+#
+#target_link_libraries(gadgetron_parallelmri
+#		gadgetron_core
+#		gadgetron_mricore
+#		gadgetron_toolbox_log
+#		gadgetron_toolbox_solvers
+#		gadgetron_toolbox_mri_core
+#		)
+#
+#install(TARGETS gadgetron_parallelmri
+#		LIBRARY DESTINATION lib
+#		ARCHIVE DESTINATION lib
+#		RUNTIME DESTINATION bin
+#		COMPONENT main
+#		)
+if (CUDA_FOUND)
+
 add_library(gadgetron_gpuparallelmri SHARED
     gadgetron_gpupmri_export.h
     GenericReconJob.h
@@ -65,5 +87,5 @@ install (FILES  gadgetron_gpupmri_export.h
                 gpuLALMSenseGadget.h
                 gpuNlcgSenseGadget.h
                 DESTINATION ${GADGETRON_INSTALL_INCLUDE_PATH} COMPONENT main)
-
+endif(CUDA_FOUND)
 add_subdirectory(config)

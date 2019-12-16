@@ -6,7 +6,7 @@ add_library(gadgetron_toolbox_cpuparallelmri
         cpu_sense_utilities.h
         cpu_sense_utilities.cpp
         hoNonCartesianSenseOperator.cpp
-        )
+        hoNonCartesianSenseOperator.cpp)
 
 set_target_properties(gadgetron_toolbox_cpuparallelmri PROPERTIES VERSION ${GADGETRON_VERSION_STRING} SOVERSION ${GADGETRON_SOVERSION})
 
