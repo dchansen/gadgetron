@@ -6,6 +6,7 @@
 
 #include "linearOperator.h"
 #include "GadgetronTimer.h"
+#include "hoNDArray.h"
 
 namespace Gadgetron{
   
@@ -90,7 +91,12 @@ namespace Gadgetron{
   
   protected:
     // Estimate offset to the regularization image
-    virtual REAL estimate_offset()=0;
+    REAL estimate_offset(){
+
+        hoNDArray<REAL> tmp(*image_);
+        return percentile(tmp,REAL(0.01));
+
+    };
 
   protected:
     boost::shared_ptr< ARRAY_TYPE_REAL > image_;
